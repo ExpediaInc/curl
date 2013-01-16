@@ -165,6 +165,8 @@ curl_verbose_msg="enabled (--disable-verbose)"
    curl_rtsp_msg="no      (--enable-rtsp)"
    curl_rtmp_msg="no      (--with-librtmp)"
   curl_mtlnk_msg="no      (--with-libmetalink)"
+ curl_oauth2_msg="no      (--enable-oauth2)"
+curl_httpmac_msg="no      (--enable-httpmac)"
 
     init_ssl_msg=${curl_ssl_msg}
 
@@ -752,6 +754,8 @@ AC_HELP_STRING([--disable-gopher],[Disable Gopher support]),
        AC_MSG_RESULT(yes)
 )
 
+CURL_CHECK_OPTION_OAUTH2      dnl check whether to support OAuth 2.0
+CURL_CHECK_OPTION_HTTPMAC     dnl check whether to support HTTP MAC
 
 dnl **********************************************************************
 dnl Check for built-in manual
@@ -3281,6 +3285,18 @@ fi
 dnl set variable for use in automakefile(s)
 AM_CONDITIONAL(USE_MANUAL, test x"$USE_MANUAL" = x1)
 
+CURL_CHECK_OAUTH2
+if test "x$want_oauth2" = "xyes"; then
+    curl_oauth2_msg="enabled (tokens as application/x-www-form-urlencoded"
+    if test "x$has_json" = "xyes"; then
+        curl_oauth2_msg="$curl_oauth2_msg, application/json"
+    fi
+    curl_oauth2_msg="$curl_oauth2_msg)"
+fi
+if test "x$want_httpmac" = "xyes"; then
+    curl_httpmac_msg="enabled"
+fi
+
 CURL_CHECK_LIB_ARES
 AM_CONDITIONAL(USE_EMBEDDED_ARES, test x$embedded_ares = xyes)
 
@@ -3754,33 +3770,35 @@ CURL_GENERATE_CONFIGUREHELP_PM
 
 AC_MSG_NOTICE([Configured to build curl/libcurl:
 
-  curl version:     ${CURLVERSION}
-  Host setup:       ${host}
-  Install prefix:   ${prefix}
-  Compiler:         ${CC}
-  SSL support:      ${curl_ssl_msg}
-  SSH support:      ${curl_ssh_msg}
-  zlib support:     ${curl_zlib_msg}
-  krb4 support:     ${curl_krb4_msg}
-  GSSAPI support:   ${curl_gss_msg}
-  SPNEGO support:   ${curl_spnego_msg}
-  TLS-SRP support:  ${curl_tls_srp_msg}
-  resolver:         ${curl_res_msg}
-  ipv6 support:     ${curl_ipv6_msg}
-  IDN support:      ${curl_idn_msg}
-  Build libcurl:    Shared=${enable_shared}, Static=${enable_static}
-  Built-in manual:  ${curl_manual_msg}
-  --libcurl option: ${curl_libcurl_msg}
-  Verbose errors:   ${curl_verbose_msg}
-  SSPI support:     ${curl_sspi_msg}
-  ca cert bundle:   ${ca}
-  ca cert path:     ${capath}
-  LDAP support:     ${curl_ldap_msg}
-  LDAPS support:    ${curl_ldaps_msg}
-  RTSP support:     ${curl_rtsp_msg}
-  RTMP support:     ${curl_rtmp_msg}
-  metalink support: ${curl_mtlnk_msg}
-  Protocols:        ${SUPPORT_PROTOCOLS}
+  curl version:      ${CURLVERSION}
+  Host setup:        ${host}
+  Install prefix:    ${prefix}
+  Compiler:          ${CC}
+  SSL support:       ${curl_ssl_msg}
+  SSH support:       ${curl_ssh_msg}
+  zlib support:      ${curl_zlib_msg}
+  krb4 support:      ${curl_krb4_msg}
+  GSSAPI support:    ${curl_gss_msg}
+  SPNEGO support:    ${curl_spnego_msg}
+  TLS-SRP support:   ${curl_tls_srp_msg}
+  resolver:          ${curl_res_msg}
+  ipv6 support:      ${curl_ipv6_msg}
+  IDN support:       ${curl_idn_msg}
+  Build libcurl:     Shared=${enable_shared}, Static=${enable_static}
+  Built-in manual:   ${curl_manual_msg}
+  --libcurl option:  ${curl_libcurl_msg}
+  Verbose errors:    ${curl_verbose_msg}
+  SSPI support:      ${curl_sspi_msg}
+  ca cert bundle:    ${ca}
+  ca cert path:      ${capath}
+  LDAP support:      ${curl_ldap_msg}
+  LDAPS support:     ${curl_ldaps_msg}
+  RTSP support:      ${curl_rtsp_msg}
+  RTMP support:      ${curl_rtmp_msg}
+  metalink support:  ${curl_mtlnk_msg}
+  OAuth 2.0 support: ${curl_oauth2_msg}
+  HTTP MAC support:  ${curl_httpmac_msg}
+  Protocols:         ${SUPPORT_PROTOCOLS}
 ])
 
 if test "x$soname_bump" = "xyes"; then

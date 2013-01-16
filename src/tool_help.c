@@ -71,7 +71,7 @@ static const char *const helptext[] = {
   "     --disable-epsv  Inhibit using EPSV (F)",
   " -D, --dump-header FILE  Write the headers to this file",
   "     --egd-file FILE  EGD socket path for random data (SSL)",
-  "     --engine ENGINGE  Crypto engine (SSL). \"--engine list\" for list",
+  "     --engine ENGINE  Crypto engine (SSL). \"--engine list\" for list",
 #ifdef USE_ENVIRONMENT
   "     --environment   Write results to environment variables (RISC OS)",
 #endif
@@ -98,6 +98,9 @@ static const char *const helptext[] = {
   " -h, --help          This help text",
   "     --hostpubmd5 MD5  "
   "Hex encoded MD5 string of the host public key. (SSH)",
+#ifndef CURL_DISABLE_OAUTH2
+  "     --http-mac-ext STRING  Set the ext field for HTTP MAC (H)",
+#endif
   " -0, --http1.0       Use HTTP 1.0 (H)",
   "     --ignore-content-length  Ignore the HTTP Content-Length header",
   " -i, --include       Include protocol headers in the output (H/F)",
@@ -135,6 +138,10 @@ static const char *const helptext[] = {
   "     --no-sessionid  Disable SSL session-ID reusing (SSL)",
   "     --noproxy       List of hosts which do not use proxy",
   "     --ntlm          Use HTTP NTLM authentication (H)",
+#ifndef CURL_DISABLE_OAUTH2
+  "     --oauth2 FILE   "
+  "Authenticate using the OAuth 2.0 token in the file (H)",
+#endif
   " -o, --output FILE   Write output to <file> instead of stdout",
   "     --pass PASS     Pass phrase for the private key (SSL/SSH)",
   "     --post301       "

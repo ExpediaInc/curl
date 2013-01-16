@@ -23,6 +23,10 @@ CFGSET=true
 !MESSAGE   WITH_SSL=<dll or static>     - Enable OpenSSL support, DLL or static
 !MESSAGE   WITH_ZLIB=<dll or static>    - Enable zlib support, DLL or static
 !MESSAGE   WITH_SSH2=<dll or static>    - Enable libSSH2 support, DLL or static
+!MESSAGE   ENABLE_OAUTH2=<yes or no>    - Enable OAUth 2.0 authorization, defaults to yes
+!MESSAGE   ENABLE_HTTPMAC=<yes or no>   - Enable HTTP MAC for OAuth 2.0, defaults to the opposite of ENABLE_WINSSL
+!MESSAGE   WITH_JSONSL=<dll or static>  - Enable JSONSL support, DLL or static
+
 !MESSAGE   ENABLE_IDN=<yes or no>       - Enable use of Windows IDN APIs, defaults to yes
 !MESSAGE                                  Requires Windows Vista or later, or installation from:
 !MESSAGE                                  http://www.microsoft.com/downloads/details.aspx?FamilyID=AD6158D7-DDBA-416A-9109-07607425A815
@@ -103,6 +107,26 @@ USE_WINSSL = true
 USE_WINSSL = false
 !ENDIF
 
+!IFNDEF ENABLE_OAUTH2
+USE_OAUTH2 = true
+!ELSEIF "$(ENABLE_OAUTH2)"=="yes"
+USE_OAUTH2 = true
+!ELSEIF "$(ENABLE_OAUTH2)"=="no"
+USE_OAUTH2 = false
+!ENDIF
+
+!IFNDEF ENABLE_HTTPMAC
+!IF "$(USE_WINSSL)"=="true"
+USE_HTTPMAC = false
+!ELSE
+USE_HTTPMAC = true
+!ENDIF
+!ELSEIF "$(ENABLE_HTTPMAC)"=="yes"
+USE_HTTPMAC = true
+!ELSEIF "$(ENABLE_HTTPMAC)"=="no"
+USE_HTTPMAC = false
+!ENDIF
+
 CONFIG_NAME_LIB = libcurl
 
 !IF "$(WITH_SSL)"=="dll"
@@ -129,6 +153,15 @@ USE_SSH2 = true
 SSH2     = static
 !ENDIF
 
+!IF "$(WITH_JSONSL)"=="dll"
+USE_JSONSL = true
+JSONSL     = dll
+!ELSEIF "$(WITH_JSONSL)"=="static"
+USE_JSONSL = true
+JSONSL     = static
+!ENDIF
+
+
 CONFIG_NAME_LIB = $(CONFIG_NAME_LIB)-vc$(VC)-$(MACHINE)
 
 !IF "$(DEBUG)"=="yes"
@@ -145,6 +178,10 @@ CONFIG_NAME_LIB = $(CONFIG_NAME_LIB)-static
 
 !IF "$(USE_SSL)"=="true"
 CONFIG_NAME_LIB = $(CONFIG_NAME_LIB)-ssl-$(SSL)
+!ENDIF
+
+!IF "$(USE_JSONSL)"=="true"
+CONFIG_NAME_LIB = $(CONFIG_NAME_LIB)-jsonsl-$(JSONSL)
 !ENDIF
 
 !IF "$(USE_ZLIB)"=="true"
@@ -196,6 +233,9 @@ $(MODE):
 	@SET USE_SSPI=$(USE_SSPI)
 	@SET USE_SPNEGO=$(USE_SPNEGO)
 	@SET USE_WINSSL=$(USE_WINSSL)
+	@SET USE_OAUTH2=$(USE_OAUTH2)
+	@SET USE_HTTPMAC=$(USE_HTTPMAC)
+        @SET USE_JSONSL=$(USE_JSONSL)
 	@$(MAKE) /NOLOGO /F MakefileBuild.vc
 
 copy_from_lib:

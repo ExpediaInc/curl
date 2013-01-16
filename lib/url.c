@@ -2434,6 +2434,21 @@ CURLcode Curl_setopt(struct SessionHandle *data, CURLoption option,
     data->set.tcp_keepintvl = va_arg(param, long);
     break;
 
+#ifndef CURL_DISABLE_OAUTH2
+
+  case CURLOPT_OAUTH2_TOKEN:
+    /*
+     * OAuth 2.0 token to use in the operation
+     */
+    data->set.oauth2token = va_arg(param, struct curl_oauth2_token *);
+    break;
+  case CURLOPT_HTTP_MAC_EXT:
+    result = setstropt(&data->set.str[STRING_HTTP_MAC_EXT],
+                       va_arg(param, char *));
+    break;
+
+#endif
+
   default:
     /* unknown tag and its companion, just ignore: */
     result = CURLE_UNKNOWN_OPTION;
@@ -3464,6 +3479,9 @@ static struct connectdata *allocate_conn(struct SessionHandle *data)
 #endif /* CURL_DISABLE_PROXY */
 
   conn->bits.user_passwd = (NULL != data->set.str[STRING_USERNAME])?TRUE:FALSE;
+#ifndef CURL_DISABLE_OAUTH2
+  conn->bits.oauth2 = (NULL != data->set.oauth2token)?TRUE:FALSE;
+#endif
   conn->bits.ftp_use_epsv = data->set.ftp_use_epsv;
   conn->bits.ftp_use_eprt = data->set.ftp_use_eprt;
 

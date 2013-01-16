@@ -423,6 +423,14 @@
 /* Name of package */
 #define PACKAGE "curl"
 
+#ifdef DISABLE_OAUTH2
+#  define CURL_DISABLE_OAUTH2 1
+#endif
+
+#ifdef DISABLE_HTTPMAC
+#  define CURL_DISABLE_HTTPMAC 1
+#endif
+
 /* ---------------------------------------------------------------- */
 /*                       WinCE                                      */
 /* ---------------------------------------------------------------- */

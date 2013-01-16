@@ -85,6 +85,65 @@ AC_HELP_STRING([--disable-ares],[Disable c-ares for DNS lookups]),
 ])
 
 
+dnl CURL_CHECK_OPTION_OAUTH2
+dnl -------------------------------------------------
+AC_DEFUN([CURL_CHECK_OPTION_OAUTH2], [
+  AC_BEFORE([$0],[CURL_CHECK_OPTION_HTTPMAC])dnl
+  AC_BEFORE([$0],[CURL_CHECK_OAUTH2])dnl
+  AC_MSG_CHECKING([whether to enable support for OAuth 2.0 authorization])
+  OPT_OAUTH2="yes"
+  AC_ARG_ENABLE(oauth2,
+AC_HELP_STRING([--enable-oauth2],[Enable OAuth 2.0 authorization])
+AC_HELP_STRING([--disable-oauth2],[Disable OAuth 2.0 authorization]),
+  OPT_OAUTH2=$enableval)
+  case "$OPT_OAUTH2" in
+    no)
+      dnl --disable-oauth2 option used
+      want_oauth2="no"
+      AC_DEFINE(CURL_DISABLE_OAUTH2, 1, [to disable OAuth 2.0 support])
+      AC_SUBST(CURL_DISABLE_OAUTH2, [1])
+      ;;
+    *)
+      dnl --enable-oauth2 option used
+      want_oauth2="yes"
+      ;;
+  esac
+  AC_MSG_RESULT([$want_oauth2])
+])
+AC_DEFUN([CURL_CHECK_OPTION_HTTPMAC], [
+  AC_MSG_CHECKING([whether to enable support for HTTP MAC])
+  OPT_HTTPMAC="$want_httpmac"
+  AC_ARG_ENABLE(httpmac,
+AC_HELP_STRING([--enable-httpmac],[Enable HTTP MAC support])
+AC_HELP_STRING([--disable-httpmac],[Disable HTTP MAC support]),
+  OPT_HTTPMAC=$enableval)
+  case "$OPT_HTTPMAC" in
+    no)
+      dnl --disable-httpmac option used
+      want_httpmac="no"
+      AC_DEFINE(CURL_DISABLE_HTTPMAC, 1, [to disable HTTP MAC support])
+      AC_SUBST(CURL_DISABLE_HTTPMAC, [1])
+      ;;
+    *)
+      dnl --enable-httpmac option used
+      want_httpmac="yes"
+      ;;
+  esac
+  AC_MSG_RESULT([$want_httpmac])
+])
+
+AC_DEFUN([CURL_CHECK_OAUTH2], [
+  #
+  if test "$want_oauth2" = "yes"; then
+    dnl OAuth 2.0 support has been requested, see if we can read JSON
+    AC_CHECK_LIB(jsonsl, jsonsl_new,
+               [has_json=yes
+	       AC_DEFINE(HAVE_JSONSL, 1, [to use jsonsl to parse JSON])
+               AC_SUBST(HAVE_JSONSL, [1])
+               LIBS="$LIBS -ljsonsl"
+    	       ])
+  fi])
+
 dnl CURL_CHECK_OPTION_CURLDEBUG
 dnl -------------------------------------------------
 dnl Verify if configure has been invoked with option

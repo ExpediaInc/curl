@@ -56,6 +56,7 @@
 #include "strequal.h"
 #include "sslgen.h"
 #include "http_digest.h"
+#include "http_oauth2.h"
 #include "curl_ntlm.h"
 #include "curl_ntlm_wb.h"
 #include "http_negotiate.h"
@@ -285,6 +286,10 @@ static bool pickoneauth(struct auth *pick)
      of preference in case of the existence of multiple accepted types. */
   if(avail & CURLAUTH_GSSNEGOTIATE)
     pick->picked = CURLAUTH_GSSNEGOTIATE;
+#ifndef CURL_DISABLE_OAUTH2
+  else if(avail & CURLAUTH_OAUTH2)
+    pick->picked = CURLAUTH_OAUTH2;
+#endif
   else if(avail & CURLAUTH_DIGEST)
     pick->picked = CURLAUTH_DIGEST;
   else if(avail & CURLAUTH_NTLM)
@@ -439,13 +444,16 @@ CURLcode Curl_http_auth_act(struct connectdata *conn)
   if(data->state.authproblem)
     return data->set.http_fail_on_error?CURLE_HTTP_RETURNED_ERROR:CURLE_OK;
 
-  if(conn->bits.user_passwd &&
+#ifndef CURL_DISABLE_OAUTH2
+  /* should we have separate functions for OAuth 2.0 and username:password? */
+  if((conn->bits.user_passwd || conn->bits.oauth2) &&
      ((data->req.httpcode == 401) ||
       (conn->bits.authneg && data->req.httpcode < 300))) {
     pickhost = pickoneauth(&data->state.authhost);
     if(!pickhost)
       data->state.authproblem = TRUE;
   }
+#endif
   if(conn->bits.proxy_user_passwd &&
      ((data->req.httpcode == 407) ||
       (conn->bits.authneg && data->req.httpcode < 300))) {
@@ -553,6 +561,18 @@ output_auth_headers(struct connectdata *conn,
   else
 #endif
 #ifndef CURL_DISABLE_CRYPTO_AUTH
+#ifndef CURL_DISABLE_OAUTH2
+  if(authstatus->picked == CURLAUTH_OAUTH2) {
+    auth="OAuth 2.0";
+    result = Curl_output_oauth2(conn,
+                                proxy,
+                                (const unsigned char *)request,
+                                (const unsigned char *)path);
+    if(result)
+      return result;
+  }
+  else
+#endif
   if(authstatus->picked == CURLAUTH_DIGEST) {
     auth="Digest";
     result = Curl_output_digest(conn,
@@ -581,10 +601,19 @@ output_auth_headers(struct connectdata *conn,
   }
 
   if(auth) {
-    infof(data, "%s auth using %s with user '%s'\n",
-          proxy?"Proxy":"Server", auth,
-          proxy?(conn->proxyuser?conn->proxyuser:""):
-                (conn->user?conn->user:""));
+#ifndef CURL_DISABLE_OAUTH2
+    if(conn->bits.oauth2) {
+      infof(data, "%s OAuth 2.0 auth using token\n",
+            proxy?"Proxy":"Server");
+    }
+    else
+#endif
+    {
+      infof(data, "%s auth using %s with user '%s'\n",
+            proxy?"Proxy":"Server", auth,
+            proxy?(conn->proxyuser?conn->proxyuser:""):
+            (conn->user?conn->user:""));
+    }
     authstatus->multi = (!authstatus->done) ? TRUE : FALSE;
   }
   else
@@ -625,7 +654,11 @@ Curl_http_output_auth(struct connectdata *conn,
   authproxy = &data->state.authproxy;
 
   if((conn->bits.httpproxy && conn->bits.proxy_user_passwd) ||
-     conn->bits.user_passwd)
+     conn->bits.user_passwd
+#ifndef CURL_DISABLE_OAUTH2
+     || conn->bits.oauth2
+#endif
+    )
     /* continue please */ ;
   else {
     authhost->done = TRUE;
@@ -804,6 +837,26 @@ CURLcode Curl_http_input_auth(struct connectdata *conn,
       else
 #endif
 #ifndef CURL_DISABLE_CRYPTO_AUTH
+#ifndef CURL_DISABLE_OAUTH2
+        if(checkprefix("MAC", start) || checkprefix("Bearer", start)) {
+          if((authp->avail & CURLAUTH_OAUTH2) != 0) {
+            infof(data, "Ignoring duplicate OAuth2 auth header.\n");
+          }
+          else {
+            *availp |= CURLAUTH_OAUTH2;
+            authp->avail |= CURLAUTH_OAUTH2;
+            if(authp->picked == CURLAUTH_OAUTH2) {
+              /* We asked for OAuth 2.0 authentication but got a 40X back
+                 anyway, which basically means our token isn't
+                 valid. */
+              authp->avail = CURLAUTH_NONE;
+              infof(data, "Authentication problem. Ignoring this.\n");
+              data->state.authproblem = TRUE;
+            }
+          }
+        }
+        else
+#endif
         if(checkprefix("Digest", start)) {
           if((authp->avail & CURLAUTH_DIGEST) != 0) {
             infof(data, "Ignoring duplicate digest auth header.\n");
@@ -1737,7 +1790,76 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
     conn->allocptr.uagent=NULL;
   }
 
-  /* setup the authentication headers */
+  Curl_safefree(conn->allocptr.host);
+
+  ptr = Curl_checkheaders(data, "Host:");
+  if(ptr && (!data->state.this_is_a_follow ||
+             Curl_raw_equal(data->state.first_host, conn->host.name))) {
+#if !defined(CURL_DISABLE_COOKIES)
+    /* If we have a given custom Host: header, we extract the host name in
+       order to possibly use it for cookie reasons later on. We only allow the
+       custom Host: header if this is NOT a redirect, as setting Host: in the
+       redirected request is being out on thin ice. Except if the host name
+       is the same as the first one! */
+    char *cookiehost = copy_header_value(ptr);
+    if(!cookiehost)
+      return CURLE_OUT_OF_MEMORY;
+    if(!*cookiehost)
+      /* ignore empty data */
+      free(cookiehost);
+    else {
+      /* If the host begins with '[', we start searching for the port after
+         the bracket has been closed */
+      int startsearch = 0;
+      if(*cookiehost == '[') {
+        char *closingbracket;
+        /* since the 'cookiehost' is an allocated memory area that will be
+           freed later we cannot simply increment the pointer */
+        memmove(cookiehost, cookiehost + 1, strlen(cookiehost) - 1);
+        closingbracket = strchr(cookiehost, ']');
+        if(closingbracket)
+          *closingbracket = 0;
+      }
+      else {
+        char *colon = strchr(cookiehost + startsearch, ':');
+        if(colon)
+          *colon = 0; /* The host must not include an embedded port number */
+      }
+      Curl_safefree(conn->allocptr.cookiehost);
+      conn->allocptr.cookiehost = cookiehost;
+    }
+#endif
+
+    conn->allocptr.host = NULL;
+  }
+  else {
+    /* When building Host: headers, we must put the host name within
+       [brackets] if the host name is a plain IPv6-address. RFC2732-style. */
+
+    if(((conn->given->protocol&CURLPROTO_HTTPS) &&
+        (conn->remote_port == PORT_HTTPS)) ||
+       ((conn->given->protocol&CURLPROTO_HTTP) &&
+        (conn->remote_port == PORT_HTTP)) )
+      /* if(HTTPS on port 443) OR (HTTP on port 80) then don't include
+         the port number in the host string */
+      conn->allocptr.host = aprintf("Host: %s%s%s\r\n",
+                                    conn->bits.ipv6_ip?"[":"",
+                                    host,
+                                    conn->bits.ipv6_ip?"]":"");
+    else
+      conn->allocptr.host = aprintf("Host: %s%s%s:%hu\r\n",
+                                    conn->bits.ipv6_ip?"[":"",
+                                    host,
+                                    conn->bits.ipv6_ip?"]":"",
+                                    conn->remote_port);
+
+    if(!conn->allocptr.host)
+      /* without Host: we can't make a nice request */
+      return CURLE_OUT_OF_MEMORY;
+  }
+
+  /* Setup the authentication headers. We expect that Host: has
+     been set above as some authentication protocols require it. */
   result = Curl_http_output_auth(conn, request, ppath, FALSE);
   if(result)
     return result;
@@ -1822,74 +1944,6 @@ CURLcode Curl_http(struct connectdata *conn, bool *done)
 
     if(data->req.upload_chunky)
       te = "Transfer-Encoding: chunked\r\n";
-  }
-
-  Curl_safefree(conn->allocptr.host);
-
-  ptr = Curl_checkheaders(data, "Host:");
-  if(ptr && (!data->state.this_is_a_follow ||
-             Curl_raw_equal(data->state.first_host, conn->host.name))) {
-#if !defined(CURL_DISABLE_COOKIES)
-    /* If we have a given custom Host: header, we extract the host name in
-       order to possibly use it for cookie reasons later on. We only allow the
-       custom Host: header if this is NOT a redirect, as setting Host: in the
-       redirected request is being out on thin ice. Except if the host name
-       is the same as the first one! */
-    char *cookiehost = copy_header_value(ptr);
-    if(!cookiehost)
-      return CURLE_OUT_OF_MEMORY;
-    if(!*cookiehost)
-      /* ignore empty data */
-      free(cookiehost);
-    else {
-      /* If the host begins with '[', we start searching for the port after
-         the bracket has been closed */
-      int startsearch = 0;
-      if(*cookiehost == '[') {
-        char *closingbracket;
-        /* since the 'cookiehost' is an allocated memory area that will be
-           freed later we cannot simply increment the pointer */
-        memmove(cookiehost, cookiehost + 1, strlen(cookiehost) - 1);
-        closingbracket = strchr(cookiehost, ']');
-        if(closingbracket)
-          *closingbracket = 0;
-      }
-      else {
-        char *colon = strchr(cookiehost + startsearch, ':');
-        if(colon)
-          *colon = 0; /* The host must not include an embedded port number */
-      }
-      Curl_safefree(conn->allocptr.cookiehost);
-      conn->allocptr.cookiehost = cookiehost;
-    }
-#endif
-
-    conn->allocptr.host = NULL;
-  }
-  else {
-    /* When building Host: headers, we must put the host name within
-       [brackets] if the host name is a plain IPv6-address. RFC2732-style. */
-
-    if(((conn->given->protocol&CURLPROTO_HTTPS) &&
-        (conn->remote_port == PORT_HTTPS)) ||
-       ((conn->given->protocol&CURLPROTO_HTTP) &&
-        (conn->remote_port == PORT_HTTP)) )
-      /* if(HTTPS on port 443) OR (HTTP on port 80) then don't include
-         the port number in the host string */
-      conn->allocptr.host = aprintf("Host: %s%s%s\r\n",
-                                    conn->bits.ipv6_ip?"[":"",
-                                    host,
-                                    conn->bits.ipv6_ip?"]":"");
-    else
-      conn->allocptr.host = aprintf("Host: %s%s%s:%hu\r\n",
-                                    conn->bits.ipv6_ip?"[":"",
-                                    host,
-                                    conn->bits.ipv6_ip?"]":"",
-                                    conn->remote_port);
-
-    if(!conn->allocptr.host)
-      /* without Host: we can't make a nice request */
-      return CURLE_OUT_OF_MEMORY;
   }
 
 #ifndef CURL_DISABLE_PROXY

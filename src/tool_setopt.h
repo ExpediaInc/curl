@@ -82,6 +82,9 @@ CURLcode tool_setopt_httppost(CURL *curl, struct Configurable *config,
 CURLcode tool_setopt_slist(CURL *curl, struct Configurable *config,
                            const char *name, CURLoption tag,
                            struct curl_slist *list);
+CURLcode tool_setopt_oauth2token(CURL *curl, struct Configurable *config,
+                                 const char *name, CURLoption tag,
+                                 struct curl_oauth2_token *token);
 CURLcode tool_setopt(CURL *curl, bool str, struct Configurable *config,
                      const char *name, CURLoption tag, ...);
 
@@ -105,6 +108,9 @@ CURLcode tool_setopt(CURL *curl, bool str, struct Configurable *config,
 
 #define my_setopt_slist(x,y,z) \
   SETOPT_CHECK(tool_setopt_slist(x, config, #y, y, z))
+
+#define my_setopt_oauth2token(x,y,z) \
+  SETOPT_CHECK(tool_setopt_oauth2token(x, config, #y, y, z))
 
 #define res_setopt(x,y,z) tool_setopt(x, FALSE, config, #y, y, z)
 
@@ -133,6 +139,9 @@ CURLcode tool_setopt(CURL *curl, bool str, struct Configurable *config,
   SETOPT_CHECK(curl_easy_setopt(x, y, z))
 
 #define my_setopt_slist(x,y,z) \
+  SETOPT_CHECK(curl_easy_setopt(x, y, z))
+
+#define my_setopt_oauth2token(x,y,z) \
   SETOPT_CHECK(curl_easy_setopt(x, y, z))
 
 #define res_setopt(x,y,z) curl_easy_setopt(x,y,z)

@@ -95,6 +95,10 @@ static const struct LongShort aliases[]= {
   {"*M", "ntlm-wb",                  FALSE},
   {"*n", "basic",                    FALSE},
   {"*o", "anyauth",                  FALSE},
+#ifndef CURL_DISABLE_OAUTH2
+  {"*O", "oauth2",                   TRUE},
+  {"*X", "http-mac-ext",             TRUE},
+#endif
 #ifdef USE_WATT32
   {"*p", "wdebug",                   FALSE},
 #endif
@@ -398,9 +402,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
         GetStr(&config->egd_file, nextarg);
         break;
       case 'c': /* connect-timeout */
-        err = str2unum(&config->connecttimeout, nextarg);
-        if(err)
-          return err;
+        rc=str2unum(&config->connecttimeout, nextarg);
+        if(rc)
+          return rc;
         break;
       case 'd': /* ciphers */
         GetStr(&config->cipher_list, nextarg);
@@ -529,6 +533,50 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
         /* --no-anyauth simply doesn't touch it */
         break;
 
+#ifndef CURL_DISABLE_OAUTH2
+      case 'O': /* --oauth2 */
+#ifdef CURL_ALLOW_OAUTH2_TOKEN_ON_COMMAND_LINE
+      /* get the token string */
+      if('@' == *nextarg) {
+        /* the data begins with a '@' letter, it means that a file name
+           or - (stdin) follows */
+#else
+      {
+#endif
+        FILE *file;
+        const char *fname;
+        if(curlx_strequal("-", nextarg)) {
+          fname = "<stdin>";
+          file = stdin;
+        }
+        else {
+          fname = nextarg;
+          file = fopen(nextarg, "r");
+        }
+        err = file2string(&config->oauth2token, file);
+        if(file && (file != stdin))
+          fclose(file);
+        if(err)
+          return err;
+        if(!config->oauth2token)
+          warnf(config, "Failed to read %s!\n", fname);
+      }
+#ifdef CURL_ALLOW_OAUTH2_TOKEN_ON_COMMAND_LINE
+      else
+        GetStr(&config->oauth2token, nextarg);
+#endif
+
+      if(toggle)
+        config->authtype |= CURLAUTH_OAUTH2;
+      else
+        config->authtype &= ~CURLAUTH_OAUTH2;
+      break;
+
+      case 'X': /* --http-mac-ext */
+        GetStr(&config->httpmacext, nextarg);
+        break;
+#endif
+
 #ifdef USE_WATT32
       case 'p': /* --wdebug */
         dbug_init();
@@ -545,9 +593,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
       case 's': /* --max-redirs */
         /* specified max no of redirects (http(s)), this accepts -1 as a
            special condition */
-        err = str2num(&config->maxredirs, nextarg);
-        if(err)
-          return err;
+        rc = str2num(&config->maxredirs, nextarg);
+        if(rc)
+          return rc;
         if(config->maxredirs < -1)
           return PARAM_BAD_NUMERIC;
         break;
@@ -592,9 +640,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
           return PARAM_LIBCURL_DOESNT_SUPPORT;
         break;
       case 'y': /* --max-filesize */
-        err = str2offset(&config->max_filesize, nextarg);
-        if(err)
-          return err;
+        rc = str2offset(&config->max_filesize, nextarg);
+        if(rc)
+          return rc;
         break;
       case 'z': /* --disable-eprt */
         config->disable_eprt = toggle;
@@ -670,19 +718,19 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
         config->proxybasic = toggle;
         break;
       case 'g': /* --retry */
-        err = str2unum(&config->req_retry, nextarg);
-        if(err)
-          return err;
+        rc = str2unum(&config->req_retry, nextarg);
+        if(rc)
+          return rc;
         break;
       case 'h': /* --retry-delay */
-        err = str2unum(&config->retry_delay, nextarg);
-        if(err)
-          return err;
+        rc = str2unum(&config->retry_delay, nextarg);
+        if(rc)
+          return rc;
         break;
       case 'i': /* --retry-max-time */
-        err = str2unum(&config->retry_maxtime, nextarg);
-        if(err)
-          return err;
+        rc = str2unum(&config->retry_maxtime, nextarg);
+        if(rc)
+          return rc;
         break;
 
       case 'k': /* --proxy-negotiate */
@@ -769,9 +817,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
         config->nokeepalive = (!toggle)?TRUE:FALSE;
         break;
       case '3': /* --keepalive-time */
-        err = str2unum(&config->alivetime, nextarg);
-        if(err)
-          return err;
+        rc = str2unum(&config->alivetime, nextarg);
+        if(rc)
+          return rc;
         break;
       case '4': /* --post302 */
         config->post302 = toggle;
@@ -797,9 +845,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
         config->proxyver = CURLPROXY_HTTP_1_0;
         break;
       case '9': /* --tftp-blksize */
-        err = str2unum(&config->tftp_blksize, nextarg);
-        if(err)
-          return err;
+        rc = str2unum(&config->tftp_blksize, nextarg);
+        if(rc)
+          return rc;
         break;
       case 'A': /* --mail-from */
         GetStr(&config->mail_from, nextarg);
@@ -924,9 +972,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
     case 'C':
       /* This makes us continue an ftp transfer at given position */
       if(!curlx_strequal(nextarg, "-")) {
-        err = str2offset(&config->resume_from, nextarg);
-        if(err)
-          return err;
+        rc = str2offset(&config->resume_from, nextarg);
+        if(rc)
+          return rc;
         config->resume_from_current = FALSE;
       }
       else {
@@ -1317,9 +1365,9 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
       break;
     case 'm':
       /* specified max time */
-      err = str2unum(&config->timeout, nextarg);
-      if(err)
-        return err;
+      rc = str2unum(&config->timeout, nextarg);
+      if(rc)
+        return rc;
       break;
     case 'M': /* M for manual, huge help */
       if(toggle) { /* --no-manual shows no manual... */
@@ -1633,17 +1681,17 @@ ParameterError getparameter(char *flag,    /* f or -long-flag */
       break;
     case 'y':
       /* low speed time */
-      err = str2unum(&config->low_speed_time, nextarg);
-      if(err)
-        return err;
+      rc = str2unum(&config->low_speed_time, nextarg);
+      if(rc)
+        return rc;
       if(!config->low_speed_limit)
         config->low_speed_limit = 1;
       break;
     case 'Y':
       /* low speed limit */
-      err = str2unum(&config->low_speed_limit, nextarg);
-      if(err)
-        return err;
+      rc = str2unum(&config->low_speed_limit, nextarg);
+      if(rc)
+        return rc;
       if(!config->low_speed_time)
         config->low_speed_time = 30;
       break;

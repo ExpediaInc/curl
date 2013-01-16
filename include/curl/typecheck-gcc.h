@@ -102,6 +102,9 @@ __extension__ ({                                                              \
     if((_curl_opt) == CURLOPT_SHARE)                                          \
       if(!_curl_is_ptr((value), CURLSH))                                      \
         _curl_easy_setopt_err_CURLSH();                                       \
+    if((_curl_opt) == CURLOPT_OAUTH2_TOKEN)                                   \
+      if(!_curl_is_ptr((value), struct CURL_OAuth2_token))                    \
+        _curl_easy_setopt_err_curl_oauth2token();                             \
   }                                                                           \
   curl_easy_setopt(handle, _curl_opt, value);                                 \
 })
@@ -191,6 +194,9 @@ _CURL_WARNING(_curl_easy_setopt_err_curl_slist,
   "curl_easy_setopt expects a struct curl_slist* argument for this option")
 _CURL_WARNING(_curl_easy_setopt_err_CURLSH,
   "curl_easy_setopt expects a CURLSH* argument for this option")
+_CURL_WARNING(_curl_easy_setopt_err_curl_oauth2token,
+  "curl_easy_setopt expects a "
+  "struct CURL_OAuth2_token* argument for this option")
 
 _CURL_WARNING(_curl_easy_getinfo_err_string,
   "curl_easy_getinfo expects a pointer to char * for this info")
@@ -264,6 +270,7 @@ _CURL_WARNING(_curl_easy_getinfo_err_curl_slist,
    (option) == CURLOPT_RTSP_SESSION_ID ||                                     \
    (option) == CURLOPT_RTSP_STREAM_URI ||                                     \
    (option) == CURLOPT_RTSP_TRANSPORT ||                                      \
+   (option) == CURLOPT_HTTP_MAC_EXT ||                                        \
    0)
 
 /* evaluates to true if option takes a curl_write_callback argument */

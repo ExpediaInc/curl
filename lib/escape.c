@@ -133,7 +133,9 @@ char *curl_easy_escape(CURL *handle, const char *string, int inlength)
 }
 
 /*
- * Curl_urldecode() URL decodes the given string.
+ * Curl_urlfmtdecode() URL decodes the given string.
+ *
+ * Optionally decodes x-www-form-urlencoded instead of www-urlencoded.
  *
  * Optionally detects control characters (byte codes lower than 32) in the
  * data and rejects such data.
@@ -142,10 +144,10 @@ char *curl_easy_escape(CURL *handle, const char *string, int inlength)
  * *olen. If length == 0, the length is assumed to be strlen(string).
  *
  */
-CURLcode Curl_urldecode(struct SessionHandle *data,
+CURLcode Curl_urlfmtdecode(struct SessionHandle *data,
                         const char *string, size_t length,
                         char **ostring, size_t *olen,
-                        bool reject_ctrl)
+                        bool decode_form, bool reject_ctrl)
 {
   size_t alloc = (length?length:strlen(string))+1;
   char *ns = malloc(alloc);
@@ -181,7 +183,10 @@ CURLcode Curl_urldecode(struct SessionHandle *data,
       string+=2;
       alloc-=2;
     }
-    if(reject_ctrl && (in < 0x20)) {
+    else if(in == '+' && decode_form) {
+      in = ' ';
+    }
+    else if(reject_ctrl && (in < 0x20)) {
       free(ns);
       return CURLE_URL_MALFORMAT;
     }

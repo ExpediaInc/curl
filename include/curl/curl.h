@@ -515,6 +515,12 @@ typedef enum {
   CURLE_RTSP_SESSION_ERROR,      /* 86 - mismatch of RTSP Session Ids */
   CURLE_FTP_BAD_FILE_LIST,       /* 87 - unable to parse FTP file list */
   CURLE_CHUNK_FAILED,            /* 88 - chunk callback reported error */
+  CURLE_OAUTH2_TOKEN_MALFORMAT,  /* 89 - invalid format for OAuth 2 token */
+  CURLE_OAUTH2_TOKEN_TYPE_UNSUPPORTED, /* 90 - unknwon/unsupported OAuth 2
+                                          token type */
+  CURLE_HTTP_MAC_ALGO_UNSUPPORTED, /* 91 - unknown/unsupported HTTP MAC algo */
+  CURLE_HTTP_MAC_INVALID_HOST,     /* 92 - invalid Host: header when using
+                                    HTTP MAC */
   CURL_LAST /* never use! */
 } CURLcode;
 
@@ -609,6 +615,7 @@ typedef enum {
  * CURLAUTH_NTLM         - HTTP NTLM authentication
  * CURLAUTH_DIGEST_IE    - HTTP Digest authentication with IE flavour
  * CURLAUTH_NTLM_WB      - HTTP NTLM authentication delegated to winbind helper
+ * CURLAUTH_MAC          - HTTP MAC authentication
  * CURLAUTH_ONLY         - Use together with a single other type to force no
  *                         authentication or just that single type
  * CURLAUTH_ANY          - All fine types set
@@ -622,6 +629,7 @@ typedef enum {
 #define CURLAUTH_NTLM         (((unsigned long)1)<<3)
 #define CURLAUTH_DIGEST_IE    (((unsigned long)1)<<4)
 #define CURLAUTH_NTLM_WB      (((unsigned long)1)<<5)
+#define CURLAUTH_OAUTH2       (((unsigned long)1)<<6)
 #define CURLAUTH_ONLY         (((unsigned long)1)<<31)
 #define CURLAUTH_ANY          (~CURLAUTH_DIGEST_IE)
 #define CURLAUTH_ANYSAFE      (~(CURLAUTH_BASIC|CURLAUTH_DIGEST_IE))
@@ -1536,6 +1544,10 @@ typedef enum {
   /* set the SMTP auth originator */
   CINIT(MAIL_AUTH, OBJECTPOINT, 217),
 
+  /* OAuth 2 token to use. */
+  CINIT(OAUTH2_TOKEN, OBJECTPOINT, 218),
+  CINIT(HTTP_MAC_EXT, OBJECTPOINT, 219),
+
   CURLOPT_LASTENTRY /* the last unused */
 } CURLoption;
 
@@ -2211,6 +2223,7 @@ CURL_EXTERN CURLcode curl_easy_pause(CURL *handle, int bitmask);
   stuff before they can be included! */
 #include "easy.h" /* nothing in curl is fun without the easy stuff */
 #include "multi.h"
+#include "oauth2.h"          /* support for OAuth 2 */
 
 /* the typechecker doesn't work in C++ (yet) */
 #if defined(__GNUC__) && defined(__GNUC_MINOR__) && \

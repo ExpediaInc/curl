@@ -30,6 +30,7 @@
 #include "curl_setup.h"
 
 struct timeval curlx_tvnow(void);
+struct timeval curlx_tvgettimeofday(void);
 
 /*
  * Make sure that the first argument (t1) is the more recent time and t2 is

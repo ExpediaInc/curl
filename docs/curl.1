@@ -149,7 +149,7 @@ most secure one the remote site claims to support. This is done by first
 doing a request and checking the response-headers, thus possibly inducing an
 extra network round-trip. This is used instead of setting a specific
 authentication method, which you can do with \fI--basic\fP, \fI--digest\fP,
-\fI--ntlm\fP, and \fI--negotiate\fP.
+\fI--ntlm\fP, \fI--negotiate\fP, and \fI--oauth2\fP.
 
 Note that using --anyauth is not recommended if you do uploads from stdin,
 since it may require data to be sent twice and then the client must be able to
@@ -609,6 +609,12 @@ This option can be used multiple times to add/replace/remove multiple headers.
 (SCP/SFTP) Pass a string containing 32 hexadecimal digits. The string should
 be the 128 bit MD5 checksum of the remote host's public key, curl will refuse
 the connection with the host unless the md5sums match. (Added in 7.17.1)
+.IP "--http-mac-ext <string>"
+(HTTP) When using OAuth 2.0 authentication with an HTTP MAC token, provide
+this extension string as part of the normalized request to produce a MAC
+for.
+
+If this option is used several times, the last one will be used.
 .IP "--ignore-content-length"
 (HTTP)
 Ignore the Content-Length header. This is particularly useful for servers
@@ -950,6 +956,12 @@ This option requires a library built with SSL support. Use
 \fI-V, --version\fP to see if your curl supports NTLM.
 
 If this option is used several times, only the first one is used.
+.IP "--oauth2 <file>"
+(HTTP) Authenticate using the OAuth 2.0 token in the given <file>. The token
+can be provided either in application/json or in text/www-url-encoded formats.
+See also \fI--http-mac-ext\fP for HTTP MAC tokens.
+
+If this option is used several times, the last one will be used.
 .IP "-o, --output <file>"
 Write output to <file> instead of stdout. If you are using {} or [] to fetch
 multiple documents, you can use '#' followed by a number in the <file>

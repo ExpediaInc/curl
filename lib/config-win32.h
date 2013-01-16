@@ -667,6 +667,14 @@
 /* If you want to build curl with the built-in manual */
 #define USE_MANUAL 1
 
+#ifdef DISABLE_OAUTH2
+#  define CURL_DISABLE_OAUTH2 1
+#endif
+
+#ifdef DISABLE_HTTPMAC
+#  define CURL_DISABLE_HTTPMAC 1
+#endif
+
 #if defined(__POCC__) || (USE_IPV6)
 #  define ENABLE_IPV6 1
 #endif

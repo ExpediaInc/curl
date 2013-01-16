@@ -204,6 +204,9 @@ struct Configurable {
   bool use_metalink;        /* process given URLs as metalink XML file */
   metalinkfile *metalinkfile_list; /* point to the first node */
   metalinkfile *metalinkfile_last; /* point to the last/current node */
+
+  char *oauth2token;        /* file containing the OAuth 2 token */
+  char *httpmacext;         /* "ext" property of an HTTP MAC */
 }; /* struct Configurable */
 
 void free_config_fields(struct Configurable *config);

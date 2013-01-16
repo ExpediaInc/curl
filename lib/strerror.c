@@ -292,6 +292,18 @@ curl_easy_strerror(CURLcode error)
   case CURLE_CHUNK_FAILED:
     return "Chunk callback failed";
 
+  case CURLE_OAUTH2_TOKEN_MALFORMAT:
+    return "Failed to parse valid OAuth 2.0 token";
+
+  case CURLE_OAUTH2_TOKEN_TYPE_UNSUPPORTED:
+    return "Unsupported OAuth 2.0 token type";
+
+  case CURLE_HTTP_MAC_ALGO_UNSUPPORTED:
+    return "Unsupported HTTP MAC algorithm";
+
+  case CURLE_HTTP_MAC_INVALID_HOST:
+    return "Missing or invalid Host header";
+
     /* error codes not used by current libcurl */
   case CURLE_OBSOLETE16:
   case CURLE_OBSOLETE20:

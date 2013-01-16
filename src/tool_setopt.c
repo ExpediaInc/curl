@@ -61,6 +61,7 @@ const NameValueUnsigned setopt_nv_CURLAUTH[] = {
   NV(CURLAUTH_NTLM),
   NV(CURLAUTH_DIGEST_IE),
   NV(CURLAUTH_NTLM_WB),
+  NV(CURLAUTH_OAUTH2),
   NV(CURLAUTH_ONLY),
   NV(CURLAUTH_NONE),
   NVEND,
@@ -127,6 +128,22 @@ const NameValue setopt_nv_CURLPROTO[] = {
 static const NameValue setopt_nv_CURLNONZERODEFAULTS[] = {
   NV1(CURLOPT_SSL_VERIFYPEER, 1),
   NV1(CURLOPT_SSL_VERIFYHOST, 1),
+  NVEND
+};
+
+/* OAuth 2.0 token types. */
+static const NameValue setopt_nv_OAUTH2_TOKENTYPES[] = {
+  NV(CURL_OAUTH2_TOKEN_TYPE_INVALID),
+  NV(CURL_OAUTH2_TOKEN_TYPE_BEARER),
+  NV(CURL_OAUTH2_TOKEN_TYPE_MAC),
+  NVEND
+};
+
+/* OAuth 2.0 HTTP MAC token algorithm types. */
+static const NameValue setopt_nv_OAUTH2_HTTPMACALGOS[] = {
+  NV(CURL_OAUTH2_MAC_ALGO_INVALID),
+  NV(CURL_OAUTH2_MAC_ALGO_HMAC_SHA1),
+  NV(CURL_OAUTH2_MAC_ALGO_HMAC_SHA256),
   NVEND
 };
 
@@ -441,6 +458,60 @@ CURLcode tool_setopt_slist(CURL *curl, struct Configurable *config,
   Curl_safefree(escaped);
   return ret;
 }
+
+/* setopt wrapper for CURLOPT_OAUTH2_TOKEN */
+CURLcode tool_setopt_oauth2token(CURL *curl, struct Configurable *config,
+                                 const char *name, CURLoption tag,
+                                 struct curl_oauth2_token *token)
+{
+  CURLcode ret = CURLE_OK;
+  bool skip = FALSE;
+
+  ret = curl_easy_setopt(curl, tag, token);
+  if(!token)
+    skip = TRUE;
+
+  if(config->libcurl && !skip && !ret) {
+    const NameValue *nv = NULL;
+    DECL0("struct curl_oauth2_token token;");
+
+    for(nv=setopt_nv_OAUTH2_TOKENTYPES; nv->name; nv++) {
+      if(nv->value == token->token_type) break; /* found it */
+    }
+    if(! nv->name) {
+      /* If no definition was found, output an explicit value.
+       * This could happen if new values are defined and used
+       * but the NameValue list is not updated. */
+       DATA1("token.token_type = %d;", token->token_type);
+    }
+    else {
+      DATA1("token.token_type = %s;", nv->name);
+    }
+
+    DATA1("token.access_token = \"%s\";", token->access_token);
+
+    if(token->token_type == CURL_OAUTH2_TOKEN_TYPE_MAC) {
+      DATA1("token.mac_token.mac_key = \"%s\";", token->mac_token.mac_key);
+    }
+    for(nv=setopt_nv_OAUTH2_HTTPMACALGOS; nv->name; nv++) {
+      if(nv->value == token->mac_token.mac_algo) break; /* found it */
+    }
+    if(! nv->name) {
+      /* If no definition was found, output an explicit value.
+       * This could happen if new values are defined and used
+       * but the NameValue list is not updated. */
+       DATA1("token.mac_token.mac_algo = %d;", token->token_type);
+    }
+    else {
+      DATA1("token.mac_token.mac_algo= %s;", nv->name);
+    }
+  }
+  CODE1("curl_easy_setopt(hnd, %s, &token);", name);
+
+ nomem:
+  return ret;
+}
+
 
 /* generic setopt wrapper for all other options.
  * Some type information is encoded in the tag value. */

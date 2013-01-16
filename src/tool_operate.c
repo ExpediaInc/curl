@@ -186,6 +186,7 @@ int operate(struct Configurable *config, int argc, argv_item_t argv[])
 #endif
 
   /* inits */
+
   config->postfieldsize = -1;
   config->showerror = -1; /* will show errors */
   config->use_httpget = FALSE;
@@ -405,6 +406,7 @@ int operate(struct Configurable *config, int argc, argv_item_t argv[])
   for(urlnode = config->url_list; urlnode; urlnode = urlnode->next) {
 
     int up; /* upload file counter within a single upload glob */
+
     char *infiles; /* might be a glob pattern */
     char *outfiles;
     int infilenum;
@@ -413,6 +415,11 @@ int operate(struct Configurable *config, int argc, argv_item_t argv[])
     int metalink = 0; /* nonzero for metalink download. */
     metalinkfile *mlfile;
     metalink_resource *mlres;
+
+#ifndef CURL_DISABLE_OAUTH2
+    struct curl_oauth2_token oauth2token;
+    memset(&oauth2token, 0, sizeof(oauth2token));
+#endif
 
     outfiles = NULL;
     infilenum = 1;
@@ -1327,6 +1334,23 @@ int operate(struct Configurable *config, int argc, argv_item_t argv[])
         retry_sleep = retry_sleep_default; /* ms */
         retrystart = tvnow();
 
+#ifndef CURL_DISABLE_OAUTH2
+        /* Parse a given OAuth 2 token and set the token as an option.
+           It seems silly to parse each time but if we parse outside
+           of the loop we get an issue with freeing unallocated pointers. */
+        if(config->oauth2token) {
+          res = curl_parse_oauth2_token(config->oauth2token,
+                                        strlen(config->oauth2token),
+                                        &oauth2token);
+          if(res) {
+            goto show_error;
+          }
+        }
+
+        my_setopt_oauth2token(curl, CURLOPT_OAUTH2_TOKEN, &oauth2token);
+        my_setopt_str(curl, CURLOPT_HTTP_MAC_EXT, config->httpmacext);
+#endif
+
 #ifndef CURL_DISABLE_LIBCURL_OPTION
         res = easysrc_perform();
         if(res) {
@@ -1636,6 +1660,7 @@ int operate(struct Configurable *config, int argc, argv_item_t argv[])
 #endif /* USE_METALINK */
 
         /* No more business with this output struct */
+
         if(outs.alloc_filename)
           Curl_safefree(outs.filename);
 #ifdef USE_METALINK
@@ -1688,6 +1713,11 @@ int operate(struct Configurable *config, int argc, argv_item_t argv[])
         glob_cleanup(urls);
         urls = NULL;
       }
+
+#ifndef CURL_DISABLE_OAUTH2
+      /* Cleanup OAUth 2 token */
+      curl_free_oauth2_token(&oauth2token);
+#endif
 
       if(infilenum > 1) {
         /* when file globbing, exit loop upon critical error */

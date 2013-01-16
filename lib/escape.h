@@ -24,10 +24,13 @@
 /* Escape and unescape URL encoding in strings. The functions return a new
  * allocated string or NULL if an error occurred.  */
 
-CURLcode Curl_urldecode(struct SessionHandle *data,
-                        const char *string, size_t length,
-                        char **ostring, size_t *olen,
-                        bool reject_crlf);
+CURLcode Curl_urlfmtdecode(struct SessionHandle *data,
+                           const char *string, size_t length,
+                           char **ostring, size_t *olen,
+                           bool decode_form, bool reject_crlf);
+
+#define Curl_urldecode(d, s, l, o, ol, r) \
+    Curl_urlfmtdecode((d), (s), (l), (o), (ol), FALSE, (r))
 
 #endif /* HEADER_CURL_ESCAPE_H */
 

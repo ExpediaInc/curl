@@ -193,6 +193,10 @@
 #include <libssh2_sftp.h>
 #endif /* HAVE_LIBSSH2_H */
 
+#ifndef CURL_DISABLE_OAUTH2
+#include <curl/oauth2.h>
+#endif
+
 /* Download buffer size, keep it fairly big for speed reasons */
 #undef BUFSIZE
 #define BUFSIZE CURL_MAX_WRITE_SIZE
@@ -448,6 +452,9 @@ struct ConnectBits {
   bool httpproxy;    /* if set, this transfer is done through a http proxy */
   bool user_passwd;    /* do we use user+password for this connection? */
   bool proxy_user_passwd; /* user+password for the proxy? */
+#ifndef CURL_DISABLE_OAUTH2
+  bool oauth2;    /* do we use OAuth2 for this connection? */
+#endif
   bool ipv6_ip; /* we communicate with a remote site specified with pure IPv6
                    IP address */
   bool ipv6;    /* we communicate with a site using an IPv6 address */
@@ -887,7 +894,7 @@ struct connectdata {
                                 well be the same we read from.
                                 CURL_SOCKET_BAD disables */
 
-  /** Dynamicly allocated strings, MUST be freed before this **/
+  /** Dynamically allocated strings, MUST be freed before this **/
   /** struct is killed.                                      **/
   struct dynamically_allocated_data {
     char *proxyuserpwd;
@@ -1376,6 +1383,8 @@ enum dupstring {
   STRING_TLSAUTH_PASSWORD,     /* TLS auth <password> */
 #endif
 
+  STRING_HTTP_MAC_EXT,
+
   /* -- end of strings -- */
   STRING_LAST /* not used, just an end-of-list marker */
 };
@@ -1582,6 +1591,10 @@ struct UserDefined {
   long tcp_keepintvl;    /* seconds between TCP keepalive probes */
 
   size_t maxconnects;  /* Max idle connections in the connection cache */
+
+#ifndef CURL_DISABLE_OAUTH2
+  struct curl_oauth2_token *oauth2token;
+#endif
 };
 
 struct Names {

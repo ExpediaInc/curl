@@ -87,7 +87,7 @@ PDB_NAME_DLL_DEBUG     = $(BASE_NAME_DEBUG).pdb
 
 # CURL Command section
 PROGRAM_NAME = curl.exe
-CURL_CFLAGS   =  /I../lib /I../include /nologo /W3 /EHsc /DWIN32 /FD /c
+CURL_CFLAGS   =  /I../lib /I../include /nologo /W3 /EHsc /DWIN32 /FD /c $(OAUTH2_CFLAGS)
 CURL_LFLAGS   = /nologo /out:$(DIRDIST)\bin\$(PROGRAM_NAME) /subsystem:console /machine:$(MACHINE)
 CURL_RESFLAGS = /i../include
 
@@ -121,6 +121,19 @@ SSL          = static
 SSL_CFLAGS   = /DUSE_SSLEAY /I"$(DEVEL_INCLUDE)/openssl"
 !ENDIF
 
+!IF "$(WITH_JSONSL)"=="dll"
+JSONSL_LIBS  = jsonsl.lib
+USE_JSONSL   = true
+JSONSL       = dll
+!ELSEIF "$(WITH_JSONSL)"=="static"
+JSONSL_LIBS  = jsonsl.lib
+USE_JSONSL   = true
+JSONSL       = static
+!ENDIF
+
+!IFDEF USE_JSONSL
+JSONSL_CFLAGS = /DHAVE_JSONSL
+!ENDIF
 
 !IF "$(WITH_ZLIB)"=="dll"
 ZLIB_LIBS   = zlib.lib
@@ -164,6 +177,13 @@ IDN_CFLAGS = $(IDN_CFLAGS) /DUSE_WIN32_IDN /DWANT_IDN_PROTOTYPES
 WIN_LIBS   = $(WIN_LIBS) Normaliz.lib
 !ENDIF
 
+!IF "$(USE_OAUTH2)"=="false"
+OAUTH2_CFLAGS = $(OAUTH2_CFLAGS) /DDISABLE_OAUTH2
+!ENDIF
+
+!IF "$(USE_HTTPMAC)"=="false"
+OAUTH2_CFLAGS = $(OAUTH2_CFLAGS) /DDISABLE_HTTPMAC
+!ENDIF
 
 !IFNDEF USE_IPV6
 USE_IPV6  = true
@@ -216,6 +236,18 @@ USE_WINSSL  = true
 SSPI_CFLAGS = $(SSPI_CFLAGS) /DUSE_SCHANNEL
 !ENDIF
 
+
+!IFNDEF USE_OAUTH2
+USE_OAUTH2  = false
+!ENDIF
+
+!IFNDEF USE_HTTPMAC
+!IF "$(USE_WINSSL)"=="false"
+USE_HTTPMAC  = true
+!ELSE
+USE_HTTPMAC  = false
+!ENDIF
+!ENDIF
 
 !IF "$(GEN_PDB)"=="yes"
 GEN_PDB = true
@@ -322,6 +354,14 @@ LFLAGS = $(LFLAGS) $(SSH2_LFLAGS) $(SSH2_LIBS)
 CFLAGS = $(CFLAGS) $(IDN_CFLAGS)
 !ENDIF
 
+CFLAGS = $(CFLAGS) $(OAUTH2_CFLAGS)
+
+!IF "$(USE_JSONSL)"=="true"
+CFLAGS = $(CFLAGS) $(JSONSL_CFLAGS)
+LFLAGS = $(LFLAGS) $(JSONSL_LFLAGS) $(JSONSL_LIBS)
+!ENDIF
+
+
 !IF "$(USE_IPV6)"=="true"
 CFLAGS = $(CFLAGS) $(IPV6_CFLAGS)
 !ENDIF
@@ -385,14 +425,16 @@ package: $(TARGET)
 	@cd $(MAKEDIR)
 
 $(TARGET): $(LIB_OBJS) $(LIB_DIROBJ) $(DISTDIR)
-	@echo Using SSL: $(USE_SSL)
-	@echo Using SSH2: $(USE_SSH2)
-	@echo Using ZLIB: $(USE_ZLIB)
-	@echo Using IDN:  $(USE_IDN)
-	@echo Using IPv6: $(USE_IPV6)
-	@echo Using SSPI: $(USE_SSPI)
-	@echo Using SPNEGO: $(USE_SPNEGO)
-	@echo Using WinSSL: $(USE_WINSSL)
+	@echo Using SSL:            $(USE_SSL)
+	@echo Using SSH2:           $(USE_SSH2)
+	@echo Using ZLIB:           $(USE_ZLIB)
+	@echo Using IDN:            $(USE_IDN)
+	@echo Using IPv6:           $(USE_IPV6)
+	@echo Using SSPI:           $(USE_SSPI)
+	@echo Using SPNEGO:         $(USE_SPNEGO)
+	@echo Using WinSSL:         $(USE_WINSSL)
+	@echo Supporting OAuth 2.0: $(USE_OAUTH2)
+	@echo Supporting HTTP MAC: $(USE_HTTPMAC)
 	@echo CFLAGS:     $(CFLAGS)
 	@echo LFLAGS:     $(LFLAGS)
 	@echo GenPDB:     $(GEN_PDB)
