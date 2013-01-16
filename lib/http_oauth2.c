@@ -118,9 +118,13 @@ CURLcode Curl_output_oauth2(struct connectdata *conn,
    bugs in server-side HTTP MAC timestamp validation. Defining it
    to something larger than the difference between the date of calling
    and the Epoch is a mistake... */
+<<<<<<< HEAD
 #ifndef CURL_DISABLE_HTTPMAC_RECENT_EPOCH
 #define DELTA_EPOCH_IN_SECS 1023667200L
 #endif
+=======
+/* #define DELTA_EPOCH_IN_SECS 1023667200L */
+>>>>>>> Support for OAuth 2.0 two-legged authentication.
 
 CURLcode Curl_output_mac(struct connectdata *conn,
                          bool proxy,
@@ -144,10 +148,17 @@ CURLcode Curl_output_mac(struct connectdata *conn,
   const char *hosthdr = NULL, *hosthdrp1 = NULL, *hosthdrp2 = NULL;
   char *hostname = NULL;
   unsigned long port = 0;
+<<<<<<< HEAD
   const char *extinfo = "";
   const HMAC_params *params;
   HMAC_context *ctxt;
   char digest[32];            /* The max of result_len is enough. */
+=======
+  char *extinfo = "";
+  const HMAC_params *params;
+  HMAC_context *ctxt;
+  unsigned char digest[32];            /* The max of result_len is enough. */
+>>>>>>> Support for OAuth 2.0 two-legged authentication.
   char *mac = NULL;
   size_t macsz = 0;
   CURLcode rc;
@@ -186,7 +197,11 @@ CURLcode Curl_output_mac(struct connectdata *conn,
      origin does not change. */
   now = curlx_tvgettimeofday();
 #ifdef DELTA_EPOCH_IN_SECS
+<<<<<<< HEAD
   now.tv_sec -= DELTA_EPOCH_IN_SECS;
+=======
+  now.tv_sec -= DELTA_EPOCH_IN_SECS
+>>>>>>> Support for OAuth 2.0 two-legged authentication.
 #endif
   snprintf(ts, sizeof(ts) - 1, "%ld", (long)now.tv_sec);
   ts[sizeof(ts) - 1] = '\0';
@@ -205,9 +220,12 @@ CURLcode Curl_output_mac(struct connectdata *conn,
 
   hosthdr = conn->allocptr.host;
   if(!hosthdr) {
+<<<<<<< HEAD
     hosthdr = Curl_checkheaders(data, "Host:");
   }
   if(!hosthdr) {
+=======
+>>>>>>> Support for OAuth 2.0 two-legged authentication.
     rc = CURLE_HTTP_MAC_INVALID_HOST;
     goto cleanup;
   }
@@ -284,8 +302,12 @@ CURLcode Curl_output_mac(struct connectdata *conn,
   }
 
   /* Compute the MAC using the MAC token key */
+<<<<<<< HEAD
   ctxt = Curl_HMAC_init(params,
                         (const unsigned char *)token->mac_token.mac_key,
+=======
+  ctxt = Curl_HMAC_init(params, token->mac_token.mac_key,
+>>>>>>> Support for OAuth 2.0 two-legged authentication.
                         curlx_uztoui(strlen(token->mac_token.mac_key)));
   if(!ctxt) {
     rc = CURLE_OUT_OF_MEMORY;
@@ -294,11 +316,18 @@ CURLcode Curl_output_mac(struct connectdata *conn,
 
   /* Update the MAC with the normalized request */
 
+<<<<<<< HEAD
   Curl_HMAC_update(ctxt, (const unsigned char *)nreq,
                    curlx_uztoui(strlen(nreq)));
 
   /* Finalise the MAC */
   Curl_HMAC_final(ctxt, (unsigned char *)digest);
+=======
+  Curl_HMAC_update(ctxt, nreq, curlx_uztoui(strlen(nreq)));
+
+  /* Finalise the MAC */
+  Curl_HMAC_final(ctxt, digest);
+>>>>>>> Support for OAuth 2.0 two-legged authentication.
 
   /* Base64-encode the mac to produce the request MAC */
 
@@ -329,7 +358,11 @@ CURLcode Curl_output_mac(struct connectdata *conn,
   rc = CURLE_OK;
 
   cleanup:
+<<<<<<< HEAD
   if(*extinfo) free((char *) extinfo);
+=======
+  if(*extinfo) free(extinfo);
+>>>>>>> Support for OAuth 2.0 two-legged authentication.
   Curl_safefree(mac);
   Curl_safefree(hostname);
   Curl_safefree(nreq);

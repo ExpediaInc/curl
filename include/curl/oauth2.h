@@ -40,11 +40,19 @@ enum curl_oauth2_mac_algo {
 
 struct curl_oauth2_token {
   enum curl_oauth2_token_type token_type;
+<<<<<<< HEAD
   const char *access_token;
   /* we do not use an union so our parser does not have to worry about
      the order of attributes in the token hash */
   struct curl_oauth2_mac_token {
     const char *mac_key;
+=======
+  char *access_token;
+  /* we do not use an union so our parser does not have to worry about
+     the order of attributes in the token hash */
+  struct curl_oauth2_mac_token {
+    char *mac_key;
+>>>>>>> Support for OAuth 2.0 two-legged authentication.
     enum curl_oauth2_mac_algo mac_algo;
   } mac_token;
 };
