@@ -212,6 +212,9 @@ CURLcode Curl_output_mac(struct connectdata *conn,
 
   hosthdr = conn->allocptr.host;
   if(!hosthdr) {
+    hosthdr = Curl_checkheaders(data, "Host:");
+  }
+  if(!hosthdr) {
     rc = CURLE_HTTP_MAC_INVALID_HOST;
     goto cleanup;
   }
