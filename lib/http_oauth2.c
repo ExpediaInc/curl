@@ -72,15 +72,6 @@ const HMAC_params Curl_HMAC_SHA256[] = {
   }
 };
 
-/* convert MAC chunk to RFC2617 (section 3.1.3) -suitable ascii string*/
-static void mac_to_ascii(unsigned char *source, /* 16 bytes */
-                         unsigned char *dest) /* 33 bytes */
-{
-  int i;
-  for(i=0; i<16; i++)
-    snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
-}
-
 #endif
 
 CURLcode Curl_output_oauth2(struct connectdata *conn,
@@ -127,7 +118,7 @@ CURLcode Curl_output_oauth2(struct connectdata *conn,
    bugs in server-side HTTP MAC timestamp validation. Defining it
    to something larger than the difference between the date of calling
    and the Epoch is a mistake... */
-/* #define DELTA_EPOCH_IN_SECS 1023667200L */
+#define DELTA_EPOCH_IN_SECS 1023667200L
 
 CURLcode Curl_output_mac(struct connectdata *conn,
                          bool proxy,
@@ -151,10 +142,10 @@ CURLcode Curl_output_mac(struct connectdata *conn,
   const char *hosthdr = NULL, *hosthdrp1 = NULL, *hosthdrp2 = NULL;
   char *hostname = NULL;
   unsigned long port = 0;
-  char *extinfo = "";
+  const char *extinfo = "";
   const HMAC_params *params;
   HMAC_context *ctxt;
-  unsigned char digest[32];            /* The max of result_len is enough. */
+  char digest[32];            /* The max of result_len is enough. */
   char *mac = NULL;
   size_t macsz = 0;
   CURLcode rc;
@@ -193,7 +184,7 @@ CURLcode Curl_output_mac(struct connectdata *conn,
      origin does not change. */
   now = curlx_tvgettimeofday();
 #ifdef DELTA_EPOCH_IN_SECS
-  now.tv_sec -= DELTA_EPOCH_IN_SECS
+  now.tv_sec -= DELTA_EPOCH_IN_SECS;
 #endif
   snprintf(ts, sizeof(ts) - 1, "%ld", (long)now.tv_sec);
   ts[sizeof(ts) - 1] = '\0';
@@ -291,7 +282,8 @@ CURLcode Curl_output_mac(struct connectdata *conn,
   }
 
   /* Compute the MAC using the MAC token key */
-  ctxt = Curl_HMAC_init(params, token->mac_token.mac_key,
+  ctxt = Curl_HMAC_init(params,
+                        (const unsigned char *)token->mac_token.mac_key,
                         curlx_uztoui(strlen(token->mac_token.mac_key)));
   if(!ctxt) {
     rc = CURLE_OUT_OF_MEMORY;
@@ -300,10 +292,11 @@ CURLcode Curl_output_mac(struct connectdata *conn,
 
   /* Update the MAC with the normalized request */
 
-  Curl_HMAC_update(ctxt, nreq, curlx_uztoui(strlen(nreq)));
+  Curl_HMAC_update(ctxt, (const unsigned char *)nreq,
+                   curlx_uztoui(strlen(nreq)));
 
   /* Finalise the MAC */
-  Curl_HMAC_final(ctxt, digest);
+  Curl_HMAC_final(ctxt, (unsigned char *)digest);
 
   /* Base64-encode the mac to produce the request MAC */
 
@@ -334,7 +327,7 @@ CURLcode Curl_output_mac(struct connectdata *conn,
   rc = CURLE_OK;
 
   cleanup:
-  if(*extinfo) free(extinfo);
+  if(*extinfo) free((char *) extinfo);
   Curl_safefree(mac);
   Curl_safefree(hostname);
   Curl_safefree(nreq);

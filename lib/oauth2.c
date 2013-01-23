@@ -82,7 +82,7 @@ static CURLcode set_token_property(struct curl_oauth2_token *token,
           !strncmp(key, "token_type", 10)) {
     const struct NameValue *nvlist;
     for(nvlist = token_nv_TOKENTYPES; nvlist->name; ++nvlist) {
-      if(val_len = strlen(nvlist->name)
+      if((val_len = strlen(nvlist->name)) != 0
          && !strncmp(val, nvlist->name, val_len)) {
         break;
       }
@@ -112,7 +112,7 @@ static CURLcode set_token_property(struct curl_oauth2_token *token,
           !strncmp(key, "mac_algorithm", 13)) {
     const struct NameValue *nvlist;
     for(nvlist = token_nv_MACALGOS; nvlist->name; ++nvlist) {
-      if(val_len = strlen(nvlist->name)
+      if((val_len = strlen(nvlist->name)) != 0
          && !strncmp(val, nvlist->name, val_len)) {
         break;
       }
@@ -229,6 +229,8 @@ static void parse_state_callback(jsonsl_t jsn,
                                  const char *buf) {
 
   struct jsonsl_token_data *datap = jsn->data;
+
+  (void)action;
 
   switch(state->level) {
   case 1:
@@ -420,11 +422,15 @@ cleanup:
 }
 
 void curl_free_oauth2_token(struct curl_oauth2_token *token) {
-  Curl_safefree(token->access_token);
+    char *cp = (char *)token->access_token;
+    Curl_safefree(cp);
 #ifndef CURL_DISABLE_HTTPMAC
   switch(token->token_type) {
   case CURL_OAUTH2_TOKEN_TYPE_MAC:
-    Curl_safefree(token->mac_token.mac_key);
+      cp = (char *)token->mac_token.mac_key;
+      Curl_safefree(cp);
+    break;
+  default:
     break;
   }
 #endif
