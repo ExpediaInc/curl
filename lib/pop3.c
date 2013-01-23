@@ -21,11 +21,11 @@
  * RFC1734 POP3 Authentication
  * RFC1939 POP3 protocol
  * RFC2195 CRAM-MD5 authentication
- * RFC2222 Simple Authentication and Security Layer (SASL)
  * RFC2384 POP URL Scheme
  * RFC2449 POP3 Extension Mechanism
  * RFC2595 Using TLS with IMAP, POP3 and ACAP
  * RFC2831 DIGEST-MD5 authentication
+ * RFC4422 Simple Authentication and Security Layer (SASL)
  * RFC4616 PLAIN authentication
  *
  ***************************************************************************/
@@ -98,8 +98,7 @@ static CURLcode pop3_done(struct connectdata *conn, CURLcode status,
 static CURLcode pop3_connect(struct connectdata *conn, bool *done);
 static CURLcode pop3_disconnect(struct connectdata *conn, bool dead);
 static CURLcode pop3_multi_statemach(struct connectdata *conn, bool *done);
-static int pop3_getsock(struct connectdata *conn,
-                        curl_socket_t *socks,
+static int pop3_getsock(struct connectdata *conn, curl_socket_t *socks,
                         int numsocks);
 static CURLcode pop3_doing(struct connectdata *conn, bool *dophase_done);
 static CURLcode pop3_setup_connection(struct connectdata *conn);
@@ -570,17 +569,8 @@ static CURLcode pop3_state_starttls_resp(struct connectdata *conn,
       result = pop3_state_capa(conn);
   }
   else {
-    if(data->state.used_interface == Curl_if_multi) {
-      state(conn, POP3_UPGRADETLS);
-      result = pop3_state_upgrade_tls(conn);
-    }
-    else {
-      result = Curl_ssl_connect(conn, FIRSTSOCKET);
-      if(CURLE_OK == result) {
-        pop3_to_pop3s(conn);
-        result = pop3_state_capa(conn);
-      }
-    }
+    state(conn, POP3_UPGRADETLS);
+    result = pop3_state_upgrade_tls(conn);
   }
 
   return result;
@@ -602,8 +592,7 @@ static CURLcode pop3_state_upgrade_tls(struct connectdata *conn)
 }
 
 /* For CAPA responses */
-static CURLcode pop3_state_capa_resp(struct connectdata *conn,
-                                     int pop3code,
+static CURLcode pop3_state_capa_resp(struct connectdata *conn, int pop3code,
                                      pop3state instate)
 {
   CURLcode result = CURLE_OK;
@@ -965,8 +954,8 @@ static CURLcode pop3_state_auth_final_resp(struct connectdata *conn,
   return result;
 }
 
-static CURLcode pop3_state_apop_resp(struct connectdata *conn,
-                                     int pop3code,
+#ifndef CURL_DISABLE_CRYPTO_AUTH
+static CURLcode pop3_state_apop_resp(struct connectdata *conn, int pop3code,
                                      pop3state instate)
 {
   CURLcode result = CURLE_OK;
@@ -984,10 +973,10 @@ static CURLcode pop3_state_apop_resp(struct connectdata *conn,
 
   return result;
 }
+#endif
 
 /* For USER responses */
-static CURLcode pop3_state_user_resp(struct connectdata *conn,
-                                     int pop3code,
+static CURLcode pop3_state_user_resp(struct connectdata *conn, int pop3code,
                                      pop3state instate)
 {
   CURLcode result = CURLE_OK;
@@ -1013,8 +1002,7 @@ static CURLcode pop3_state_user_resp(struct connectdata *conn,
 }
 
 /* For PASS responses */
-static CURLcode pop3_state_pass_resp(struct connectdata *conn,
-                                     int pop3code,
+static CURLcode pop3_state_pass_resp(struct connectdata *conn, int pop3code,
                                      pop3state instate)
 {
   CURLcode result = CURLE_OK;
@@ -1206,9 +1194,11 @@ static CURLcode pop3_statemach_act(struct connectdata *conn)
       result = pop3_state_auth_final_resp(conn, pop3code, pop3c->state);
       break;
 
+#ifndef CURL_DISABLE_CRYPTO_AUTH
     case POP3_APOP:
       result = pop3_state_apop_resp(conn, pop3code, pop3c->state);
       break;
+#endif
 
     case POP3_USER:
       result = pop3_state_user_resp(conn, pop3code, pop3c->state);
@@ -1238,7 +1228,12 @@ static CURLcode pop3_statemach_act(struct connectdata *conn)
 static CURLcode pop3_multi_statemach(struct connectdata *conn, bool *done)
 {
   struct pop3_conn *pop3c = &conn->proto.pop3c;
-  CURLcode result = Curl_pp_multi_statemach(&pop3c->pp);
+  CURLcode result;
+
+  if((conn->handler->flags & PROTOPT_SSL) && !pop3c->ssldone)
+    result = Curl_ssl_connect_nonblocking(conn, FIRSTSOCKET, &pop3c->ssldone);
+  else
+    result = Curl_pp_multi_statemach(&pop3c->pp);
 
   *done = (pop3c->state == POP3_STOP) ? TRUE : FALSE;
 
@@ -1301,7 +1296,6 @@ static CURLcode pop3_connect(struct connectdata *conn, bool *done)
 {
   CURLcode result;
   struct pop3_conn *pop3c = &conn->proto.pop3c;
-  struct SessionHandle *data = conn->data;
   struct pingpong *pp = &pop3c->pp;
 
   *done = FALSE; /* default to not done yet */
@@ -1336,13 +1330,7 @@ static CURLcode pop3_connect(struct connectdata *conn, bool *done)
   /* Start off waiting for the server greeting response */
   state(conn, POP3_SERVERGREET);
 
-  if(data->state.used_interface == Curl_if_multi)
-    result = pop3_multi_statemach(conn, done);
-  else {
-    result = pop3_easy_statemach(conn);
-    if(!result)
-      *done = TRUE;
-  }
+  result = pop3_multi_statemach(conn, done);
 
   return result;
 }
@@ -1418,12 +1406,8 @@ static CURLcode pop3_perform(struct connectdata *conn, bool *connected,
     return result;
 
   /* Run the state-machine */
-  if(conn->data->state.used_interface == Curl_if_multi)
-    result = pop3_multi_statemach(conn, dophase_done);
-  else {
-    result = pop3_easy_statemach(conn);
-    *dophase_done = TRUE; /* with the easy interface we are done here */
-  }
+  result = pop3_multi_statemach(conn, dophase_done);
+
   *connected = conn->bits.tcpconnect[FIRSTSOCKET];
 
   if(*dophase_done)
@@ -1624,8 +1608,6 @@ static CURLcode pop3_regular_transfer(struct connectdata *conn,
       return CURLE_OK;
 
     result = pop3_dophase_done(conn, connected);
-    if(result)
-      return result;
   }
 
   return result;

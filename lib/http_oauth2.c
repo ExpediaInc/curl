@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2012, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2013, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -118,7 +118,9 @@ CURLcode Curl_output_oauth2(struct connectdata *conn,
    bugs in server-side HTTP MAC timestamp validation. Defining it
    to something larger than the difference between the date of calling
    and the Epoch is a mistake... */
-/* #define DELTA_EPOCH_IN_SECS 1023667200L */
+#ifndef CURL_DISABLE_HTTPMAC_RECENT_EPOCH
+#define DELTA_EPOCH_IN_SECS 1023667200L
+#endif
 
 CURLcode Curl_output_mac(struct connectdata *conn,
                          bool proxy,

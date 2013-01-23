@@ -22,8 +22,8 @@
  * RFC3207 SMTP over TLS
  * RFC4954 SMTP Authentication
  * RFC2195 CRAM-MD5 authentication
- * RFC2222 Simple Authentication and Security Layer (SASL)
  * RFC2831 DIGEST-MD5 authentication
+ * RFC4422 Simple Authentication and Security Layer (SASL)
  * RFC4616 PLAIN authentication
  *
  ***************************************************************************/
@@ -94,8 +94,7 @@ static CURLcode smtp_done(struct connectdata *conn, CURLcode status,
 static CURLcode smtp_connect(struct connectdata *conn, bool *done);
 static CURLcode smtp_disconnect(struct connectdata *conn, bool dead);
 static CURLcode smtp_multi_statemach(struct connectdata *conn, bool *done);
-static int smtp_getsock(struct connectdata *conn,
-                        curl_socket_t *socks,
+static int smtp_getsock(struct connectdata *conn, curl_socket_t *socks,
                         int numsocks);
 static CURLcode smtp_doing(struct connectdata *conn, bool *dophase_done);
 static CURLcode smtp_setup_connection(struct connectdata *conn);
@@ -438,8 +437,7 @@ static CURLcode smtp_authenticate(struct connectdata *conn)
 }
 
 /* For the SMTP "protocol connect" and "doing" phases only */
-static int smtp_getsock(struct connectdata *conn,
-                        curl_socket_t *socks,
+static int smtp_getsock(struct connectdata *conn, curl_socket_t *socks,
                         int numsocks)
 {
   return Curl_pp_getsock(&conn->proto.smtpc.pp, socks, numsocks);
@@ -493,17 +491,8 @@ static CURLcode smtp_state_starttls_resp(struct connectdata *conn,
       result = smtp_authenticate(conn);
   }
   else {
-    if(data->state.used_interface == Curl_if_multi) {
-      state(conn, SMTP_UPGRADETLS);
-      result = smtp_state_upgrade_tls(conn);
-    }
-    else {
-      result = Curl_ssl_connect(conn, FIRSTSOCKET);
-      if(CURLE_OK == result) {
-        smtp_to_smtps(conn);
-        result = smtp_state_ehlo(conn);
-      }
-    }
+    state(conn, SMTP_UPGRADETLS);
+    result = smtp_state_upgrade_tls(conn);
   }
 
   return result;
@@ -525,8 +514,7 @@ static CURLcode smtp_state_upgrade_tls(struct connectdata *conn)
 }
 
 /* For EHLO responses */
-static CURLcode smtp_state_ehlo_resp(struct connectdata *conn,
-                                     int smtpcode,
+static CURLcode smtp_state_ehlo_resp(struct connectdata *conn, int smtpcode,
                                      smtpstate instate)
 {
   CURLcode result = CURLE_OK;
@@ -556,8 +544,7 @@ static CURLcode smtp_state_ehlo_resp(struct connectdata *conn,
 }
 
 /* For HELO responses */
-static CURLcode smtp_state_helo_resp(struct connectdata *conn,
-                                     int smtpcode,
+static CURLcode smtp_state_helo_resp(struct connectdata *conn, int smtpcode,
                                      smtpstate instate)
 {
   CURLcode result = CURLE_OK;
@@ -891,8 +878,7 @@ static CURLcode smtp_state_auth_ntlm_type2msg_resp(struct connectdata *conn,
 #endif
 
 /* For the final responses to the AUTH sequence */
-static CURLcode smtp_state_auth_resp(struct connectdata *conn,
-                                     int smtpcode,
+static CURLcode smtp_state_auth_resp(struct connectdata *conn, int smtpcode,
                                      smtpstate instate)
 {
   CURLcode result = CURLE_OK;
@@ -1006,8 +992,7 @@ static CURLcode smtp_rcpt_to(struct connectdata *conn)
 }
 
 /* For MAIL responses */
-static CURLcode smtp_state_mail_resp(struct connectdata *conn,
-                                     int smtpcode,
+static CURLcode smtp_state_mail_resp(struct connectdata *conn, int smtpcode,
                                      smtpstate instate)
 {
   CURLcode result = CURLE_OK;
@@ -1031,8 +1016,7 @@ static CURLcode smtp_state_mail_resp(struct connectdata *conn,
 }
 
 /* For RCPT responses */
-static CURLcode smtp_state_rcpt_resp(struct connectdata *conn,
-                                     int smtpcode,
+static CURLcode smtp_state_rcpt_resp(struct connectdata *conn, int smtpcode,
                                      smtpstate instate)
 {
   CURLcode result = CURLE_OK;
@@ -1070,8 +1054,7 @@ static CURLcode smtp_state_rcpt_resp(struct connectdata *conn,
 }
 
 /* For DATA response */
-static CURLcode smtp_state_data_resp(struct connectdata *conn,
-                                     int smtpcode,
+static CURLcode smtp_state_data_resp(struct connectdata *conn, int smtpcode,
                                      smtpstate instate)
 {
   struct SessionHandle *data = conn->data;
@@ -1300,7 +1283,6 @@ static CURLcode smtp_connect(struct connectdata *conn, bool *done)
 {
   CURLcode result;
   struct smtp_conn *smtpc = &conn->proto.smtpc;
-  struct SessionHandle *data = conn->data;
   struct pingpong *pp = &smtpc->pp;
   const char *path = conn->data->state.path;
   char localhost[HOSTNAME_MAX + 1];
@@ -1322,15 +1304,6 @@ static CURLcode smtp_connect(struct connectdata *conn, bool *done)
   pp->statemach_act = smtp_statemach_act;
   pp->endofresp = smtp_endofresp;
   pp->conn = conn;
-
-  if((conn->handler->protocol & CURLPROTO_SMTPS) &&
-      data->state.used_interface != Curl_if_multi) {
-    /* SMTPS is simply smtp with SSL for the control channel */
-    /* so perform the SSL initialization for this socket */
-    result = Curl_ssl_connect(conn, FIRSTSOCKET);
-    if(result)
-      return result;
-  }
 
   /* Initialise the response reader stuff */
   Curl_pp_init(pp);
@@ -1357,13 +1330,7 @@ static CURLcode smtp_connect(struct connectdata *conn, bool *done)
   /* Start off waiting for the server greeting response */
   state(conn, SMTP_SERVERGREET);
 
-  if(data->state.used_interface == Curl_if_multi)
-    result = smtp_multi_statemach(conn, done);
-  else {
-    result = smtp_easy_statemach(conn);
-    if(!result)
-      *done = TRUE;
-  }
+  result = smtp_multi_statemach(conn, done);
 
   return result;
 }
@@ -1470,13 +1437,9 @@ static CURLcode smtp_perform(struct connectdata *conn, bool *connected,
   if(result)
     return result;
 
-  /* Run the state-machine */
-  if(conn->data->state.used_interface == Curl_if_multi)
-    result = smtp_multi_statemach(conn, dophase_done);
-  else {
-    result = smtp_easy_statemach(conn);
-    *dophase_done = TRUE; /* with the easy interface we are done here */
-  }
+  /* run the state-machine */
+  result = smtp_multi_statemach(conn, dophase_done);
+
   *connected = conn->bits.tcpconnect[FIRSTSOCKET];
 
   if(*dophase_done)
@@ -1636,8 +1599,6 @@ static CURLcode smtp_regular_transfer(struct connectdata *conn,
       return CURLE_OK;
 
     result = smtp_dophase_done(conn, connected);
-    if(result)
-      return result;
   }
 
   return result;

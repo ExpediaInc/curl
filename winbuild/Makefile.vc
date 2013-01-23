@@ -44,7 +44,6 @@ CFGSET=true
 !INCLUDE "../lib/Makefile.inc"
 LIBCURL_OBJS=$(CSOURCES:.c=.obj)
 
-top_srcdir=..
 !INCLUDE "../src/Makefile.inc"
 
 # tool_hugehelp has a special rule

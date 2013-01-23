@@ -19,10 +19,10 @@
  * KIND, either express or implied.
  *
  * RFC2195 CRAM-MD5 authentication
- * RFC2222 Simple Authentication and Security Layer (SASL)
  * RFC2595 Using TLS with IMAP, POP3 and ACAP
  * RFC2831 DIGEST-MD5 authentication
  * RFC3501 IMAPv4 protocol
+ * RFC4422 Simple Authentication and Security Layer (SASL)
  * RFC4616 PLAIN authentication
  * RFC5092 IMAP URL Scheme
  *
@@ -93,8 +93,7 @@ static CURLcode imap_done(struct connectdata *conn, CURLcode status,
 static CURLcode imap_connect(struct connectdata *conn, bool *done);
 static CURLcode imap_disconnect(struct connectdata *conn, bool dead);
 static CURLcode imap_multi_statemach(struct connectdata *conn, bool *done);
-static int imap_getsock(struct connectdata *conn,
-                        curl_socket_t *socks,
+static int imap_getsock(struct connectdata *conn, curl_socket_t *socks,
                         int numsocks);
 static CURLcode imap_doing(struct connectdata *conn, bool *dophase_done);
 static CURLcode imap_setup_connection(struct connectdata *conn);
@@ -124,7 +123,6 @@ const struct Curl_handler Curl_handler_imap = {
   PROTOPT_CLOSEACTION | PROTOPT_NEEDSPWD
   | PROTOPT_NOURLQUERY              /* flags */
 };
-
 
 #ifdef USE_SSL
 /*
@@ -177,7 +175,6 @@ static const struct Curl_handler Curl_handler_imap_proxy = {
   CURLPROTO_HTTP,                       /* protocol */
   PROTOPT_NONE                          /* flags */
 };
-
 
 #ifdef USE_SSL
 /*
@@ -423,8 +420,7 @@ static int imap_endofresp(struct pingpong *pp, int *resp)
 }
 
 /* This is the ONLY way to change IMAP state! */
-static void state(struct connectdata *conn,
-                  imapstate newstate)
+static void state(struct connectdata *conn, imapstate newstate)
 {
   struct imap_conn *imapc = &conn->proto.imapc;
 #if defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
@@ -570,8 +566,7 @@ static CURLcode imap_authenticate(struct connectdata *conn)
 }
 
 /* For the IMAP "protocol connect" and "doing" phases only */
-static int imap_getsock(struct connectdata *conn,
-                        curl_socket_t *socks,
+static int imap_getsock(struct connectdata *conn, curl_socket_t *socks,
                         int numsocks)
 {
   return Curl_pp_getsock(&conn->proto.imapc.pp, socks, numsocks);
@@ -633,17 +628,8 @@ static CURLcode imap_state_starttls_resp(struct connectdata *conn,
       result = imap_state_capability(conn);
   }
   else {
-    if(data->state.used_interface == Curl_if_multi) {
-      state(conn, IMAP_UPGRADETLS);
-      result = imap_state_upgrade_tls(conn);
-    }
-    else {
-      result = Curl_ssl_connect(conn, FIRSTSOCKET);
-      if(CURLE_OK == result) {
-        imap_to_imaps(conn);
-        result = imap_state_capability(conn);
-      }
-    }
+    state(conn, IMAP_UPGRADETLS);
+    result = imap_state_upgrade_tls(conn);
   }
 
   return result;
@@ -1100,8 +1086,7 @@ static CURLcode imap_state_select_resp(struct connectdata *conn,
 }
 
 /* For the (first line of) FETCH BODY[TEXT] response */
-static CURLcode imap_state_fetch_resp(struct connectdata *conn,
-                                      int imapcode,
+static CURLcode imap_state_fetch_resp(struct connectdata *conn, int imapcode,
                                       imapstate instate)
 {
   CURLcode result = CURLE_OK;
@@ -1287,8 +1272,7 @@ static CURLcode imap_statemach_act(struct connectdata *conn)
 }
 
 /* Called repeatedly until done from multi.c */
-static CURLcode imap_multi_statemach(struct connectdata *conn,
-                                         bool *done)
+static CURLcode imap_multi_statemach(struct connectdata *conn, bool *done)
 {
   struct imap_conn *imapc = &conn->proto.imapc;
   CURLcode result;
@@ -1353,12 +1337,10 @@ static CURLcode imap_init(struct connectdata *conn)
  * phase is done when this function returns, or FALSE is not. When called as
  * a part of the easy interface, it will always be TRUE.
  */
-static CURLcode imap_connect(struct connectdata *conn,
-                                 bool *done) /* see description above */
+static CURLcode imap_connect(struct connectdata *conn, bool *done)
 {
   CURLcode result;
   struct imap_conn *imapc = &conn->proto.imapc;
-  struct SessionHandle *data=conn->data;
   struct pingpong *pp = &imapc->pp;
 
   *done = FALSE; /* default to not done yet */
@@ -1379,17 +1361,7 @@ static CURLcode imap_connect(struct connectdata *conn,
   pp->endofresp = imap_endofresp;
   pp->conn = conn;
 
-  if((conn->handler->flags & PROTOPT_SSL) &&
-     data->state.used_interface != Curl_if_multi) {
-    /* IMAPS is simply imap with SSL for the control channel */
-    /* so perform the SSL initialization for this socket */
-    result = Curl_ssl_connect(conn, FIRSTSOCKET);
-    if(result)
-      return result;
-  }
-
-  /* Initialise the response reader stuff */
-  Curl_pp_init(pp);
+  Curl_pp_init(pp); /* init generic pingpong data */
 
   /* Start off waiting for the server greeting response */
   state(conn, IMAP_SERVERGREET);
@@ -1397,13 +1369,7 @@ static CURLcode imap_connect(struct connectdata *conn,
   /* Start off with an id of '*' */
   imapc->idstr = "*";
 
-  if(data->state.used_interface == Curl_if_multi)
-    result = imap_multi_statemach(conn, done);
-  else {
-    result = imap_easy_statemach(conn);
-    if(!result)
-      *done = TRUE;
-  }
+  result = imap_multi_statemach(conn, done);
 
   return result;
 }
@@ -1473,13 +1439,9 @@ static CURLcode imap_perform(struct connectdata *conn, bool *connected,
   if(result)
     return result;
 
-  /* Run the state-machine */
-  if(conn->data->state.used_interface == Curl_if_multi)
-    result = imap_multi_statemach(conn, dophase_done);
-  else {
-    result = imap_easy_statemach(conn);
-    *dophase_done = TRUE; /* with the easy interface we are done here */
-  }
+  /* run the state-machine */
+  result = imap_multi_statemach(conn, dophase_done);
+
   *connected = conn->bits.tcpconnect[FIRSTSOCKET];
 
   if(*dophase_done)
@@ -1666,8 +1628,6 @@ static CURLcode imap_regular_transfer(struct connectdata *conn,
       return CURLE_OK;
 
     result = imap_dophase_done(conn, connected);
-    if(result)
-      return result;
   }
 
   return result;
