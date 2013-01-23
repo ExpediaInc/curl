@@ -95,7 +95,7 @@ CURLcode Curl_output_oauth2(struct connectdata *conn,
   struct curl_oauth2_token *token = data->set.oauth2token;
   CURLcode rc;
 
-  /* Parse the token we need to use. */
+  /* Check that we have an OAuth 2.0 token. */
 
   if(!token) {
     return CURLE_OAUTH2_TOKEN_MALFORMAT;
