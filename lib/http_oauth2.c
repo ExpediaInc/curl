@@ -118,7 +118,7 @@ CURLcode Curl_output_oauth2(struct connectdata *conn,
    bugs in server-side HTTP MAC timestamp validation. Defining it
    to something larger than the difference between the date of calling
    and the Epoch is a mistake... */
-#define DELTA_EPOCH_IN_SECS 1023667200L
+/* #define DELTA_EPOCH_IN_SECS 1023667200L */
 
 CURLcode Curl_output_mac(struct connectdata *conn,
                          bool proxy,
