@@ -961,7 +961,7 @@ systems support this option. (Added in 7.25.0)
 Pass a long. Sets the interval, in seconds, that the operating system will wait
 between sending keepalive probes. Not all operating systems support this
 option. (Added in 7.25.0)
-.SH NAMES and PASSWORDS OPTIONS (Authentication)
+.SH NAMES, PASSWORDS and TOKENS OPTIONS (Authentication)
 .IP CURLOPT_NETRC
 This parameter controls the preference of libcurl between using user names and
 passwords from your \fI~/.netrc\fP file, relative to user names and passwords
@@ -1054,6 +1054,16 @@ password to use for the transfer while connecting to Proxy.
 
 The CURLOPT_PROXYPASSWORD option should be used in conjunction with
 the \fICURLOPT_PROXYUSERNAME\fP option. (Added in 7.19.1)
+.IP CURLOPT_OAUTH2_TOKEN
+Pass a struct curl_oauth2_token * as parameter. OAuth 2.0 tokens in
+application/x-www-form-urlencoded and JSON formats can be parsed using the
+libcurl \fIcurl_parse_oauth2_token(3)\fP and
+\fIcurl_parse_oauth2_token_file(3)\fP functions.
+
+Bearer tokens as well as HTTP MAC tokens are supported.
+.IP CURLOPT_HTTP_MAC_EXT
+Pass a char * as parameter, pointing to a string that will be used as the
+"ext" extra parameter in an HTTP MAC Authorization header.
 .IP CURLOPT_HTTPAUTH
 Pass a long as parameter, which is set to a bitmask, to tell libcurl which
 authentication method(s) you want it to use. The available bits are listed
@@ -1061,7 +1071,8 @@ below. If more than one bit is set, libcurl will first query the site to see
 which authentication methods it supports and then pick the best one you allow
 it to use. For some methods, this will induce an extra network round-trip. Set
 the actual name and password with the \fICURLOPT_USERPWD\fP option or
-with the \fICURLOPT_USERNAME\fP and the \fICURLOPT_PASSWORD\fP options.
+with the \fICURLOPT_USERNAME\fP and the \fICURLOPT_PASSWORD\fP options, or
+set an OAuth 2.0 token with the \fICURLOPT_OAUTH2_TOKEN\fP option.
 (Added in 7.10.6)
 .RS
 .IP CURLAUTH_BASIC
@@ -1109,6 +1120,13 @@ handled intelligently by the application. In particular, the application must
 not unconditionally call wait() in its SIGCHLD signal handler to avoid being
 subject to a race condition.  This behavior is subject to change in future
 versions of libcurl.
+.IP CURLAUTH_OAUTH2
+OAuth 2.0 authentication. See RFC6749 and RFC6750. OAuth 2.0 uses a token
+to grant access to a resource.
+
+Note that libcurl only implements two-legged OAuth 2.0 at this time, meaning
+that it will take a token and generate the appropriate Authorization header.
+Supported token types are documented with \fICURLOPT_OAUTH2_TOKEN\fP.
 .IP CURLAUTH_ANY
 This is a convenience macro that sets all bits and thus makes libcurl pick any
 it finds suitable. libcurl will automatically select the one it finds most
