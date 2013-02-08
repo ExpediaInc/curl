@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # This script performs all of the steps needed to build a
 # universal binary libcurl.framework for Mac OS X 10.4 or greater.
 #
@@ -87,6 +87,9 @@ then
     : #CC=xcrun cc
 fi
 
+rm -r libcurl.framework
+mkdir -p libcurl.framework/${FRAMEWORK_VERSION}/Resources
+
 if test ! -z $SDK32; then
   echo "----Configuring libcurl for 32 bit universal framework..."
   make clean
@@ -101,20 +104,18 @@ if test ! -z $SDK32; then
   if test $? -ne 0; then exit $?; fi
 
   echo "----Creating 32 bit framework..."
-  rm -r libcurl.framework
-  mkdir -p libcurl.framework/${FRAMEWORK_VERSION}/Resources
   cp lib/.libs/libcurl.dylib libcurl.framework/${FRAMEWORK_VERSION}/libcurl
   install_name_tool -id @executable_path/../Frameworks/libcurl.framework/${FRAMEWORK_VERSION}/libcurl libcurl.framework/${FRAMEWORK_VERSION}/libcurl
   /usr/bin/sed -e "s/7\.12\.3/$VERSION/" lib/libcurl.plist >libcurl.framework/${FRAMEWORK_VERSION}/Resources/Info.plist
   mkdir -p libcurl.framework/${FRAMEWORK_VERSION}/Headers/curl
   cp include/curl/*.h libcurl.framework/${FRAMEWORK_VERSION}/Headers/curl
-  pushd libcurl.framework
+  cd libcurl.framework
   ln -fs ${FRAMEWORK_VERSION}/libcurl libcurl
   ln -fs ${FRAMEWORK_VERSION}/Resources Resources
   ln -fs ${FRAMEWORK_VERSION}/Headers Headers
   cd Versions
   ln -fs ${FRAMEWORK_VERSION} Current
-  popd
+  cd ../..
 fi
 
 if test ! -z $SDK64; then
