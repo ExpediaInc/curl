@@ -92,6 +92,8 @@ CURLcode Curl_output_oauth2(struct connectdata *conn,
     return CURLE_OAUTH2_TOKEN_MALFORMAT;
   }
 
+  /* Output the proper authorization header depending on the token type. */
+
   switch(token->token_type) {
   case CURL_OAUTH2_TOKEN_TYPE_INVALID:
     rc = CURLE_OAUTH2_TOKEN_MALFORMAT;
@@ -114,14 +116,23 @@ CURLcode Curl_output_oauth2(struct connectdata *conn,
 
 #if !defined(CURL_DISABLE_HTTPMAC) && !defined(CURL_DISABLE_CRYPTO_AUTH)
 
-/* Defining this to a relatively large value is a good way to expose
-   bugs in server-side HTTP MAC timestamp validation. Defining it
-   to something larger than the difference between the date of calling
-   and the Epoch is a mistake... */
+/* HTTP MAC requires that timestamps are monotically increasing from
+   a fixed origin (across invocations). It however does not specify
+   that origin. Defining CURL_ENABLE_HTTPMAC_RECENT_EPOCH is an easy
+   way to test that your favorite OAuth 2.0 server respects arbitrary
+   origins.
+
+   Defining DELTA_EPOCH_IN_SECS to a relatively large value is a good
+   way to expose bugs in server-side HTTP MAC timestamp validation.
+   Defining it to something larger than the difference between the date
+   of calling and the Epoch is a mistake... */
 #ifdef CURL_ENABLE_HTTPMAC_RECENT_EPOCH
 #define DELTA_EPOCH_IN_SECS 1023667200L
 #endif
 
+/*
+ * Output an HTTP MAC Authorization header.
+ */
 CURLcode Curl_output_mac(struct connectdata *conn,
                          bool proxy,
                          const unsigned char *request,
@@ -140,11 +151,12 @@ CURLcode Curl_output_mac(struct connectdata *conn,
   char **allocuserpwd;
   struct auth *authp;
   struct SessionHandle *data = conn->data;
-  const char *ext = data->set.str[STRING_HTTP_MAC_EXT];
   const char *hosthdr = NULL, *hosthdrp1 = NULL, *hosthdrp2 = NULL;
   char *hostname = NULL;
   unsigned long port = 0;
-  const char *extinfo = "";
+  const char *ext = data->set.str[STRING_HTTP_MAC_EXT];
+  bool extprovided = (ext != 0);
+  char *extinfo;
   const HMAC_params *params;
   HMAC_context *ctxt;
   char digest[32];            /* The max of result_len is enough. */
@@ -162,9 +174,14 @@ CURLcode Curl_output_mac(struct connectdata *conn,
     goto cleanup; \
   }
 
+  /* Check that we have the proper kind of token. */
+
   if(token->token_type != CURL_OAUTH2_TOKEN_TYPE_MAC) {
     return CURLE_OAUTH2_TOKEN_MALFORMAT;
   }
+
+  /* Select the right Authorization field to fill in depending on
+     whether we're talking to a proxy or the remote host. */
 
   if(proxy) {
     allocuserpwd = &conn->allocptr.proxyuserpwd;
@@ -184,6 +201,7 @@ CURLcode Curl_output_mac(struct connectdata *conn,
 
   /* Generate a timestamp from a monotically increasing source whose
      origin does not change. */
+
   now = curlx_tvgettimeofday();
 #ifdef DELTA_EPOCH_IN_SECS
   now.tv_sec -= DELTA_EPOCH_IN_SECS;
@@ -212,6 +230,8 @@ CURLcode Curl_output_mac(struct connectdata *conn,
     goto cleanup;
   }
 
+  /* Copy the hostname port of the Host header. */
+
   for(hosthdrp1 = hosthdr + 5; *hosthdrp1 && ISSPACE(*hosthdrp1); ++hosthdrp1);
   for(hosthdrp2 = hosthdrp1; *hosthdrp2 && *hosthdrp2 != ':'
         && !ISSPACE(*hosthdrp2); ++hosthdrp2);
@@ -225,6 +245,9 @@ CURLcode Curl_output_mac(struct connectdata *conn,
     goto cleanup;
   }
   strncpy(hostname, hosthdrp1, hosthdrp2 - hosthdrp1);
+
+  /* Check for a port in the Host header, and if we find it makes sure that
+     it is well formed. If not, take the connection's port. */
 
   for(hosthdrp1 = hosthdrp2 = (hosthdrp2 + (*hosthdrp2 ? 1 : 0));
        *hosthdrp2 && ISDIGIT(*hosthdrp2); ++hosthdrp2);
@@ -243,13 +266,20 @@ CURLcode Curl_output_mac(struct connectdata *conn,
     port = conn->remote_port;
   }
 
+  /* Any non-space character found in the Host field after the hostname
+     and port makes that header invalid. */
+
   for(; *hosthdrp2 && ISSPACE(*hosthdrp2); ++hosthdrp2);
   if(*hosthdrp2) {
     rc = CURLE_HTTP_MAC_INVALID_HOST;
     goto cleanup;
   }
 
-  /* Now generate the normalized request */
+  /* Now generate the normalized request. See the I-D for details of the
+     fields that get into there. All fields are separated by a newline
+     defined as %0a (ASCII 10). If an "ext" field was not provided,
+     include an empty one. */
+
   if(!ext) {
     ext = "";
   }
@@ -267,7 +297,9 @@ CURLcode Curl_output_mac(struct connectdata *conn,
   }
   CURL_OUTPUT_MAC_CONV(data, nreq);
 
-  /* Pick appropriate parameters. */
+  /* Pick appropriate parameters to run the HMAC on the normalized
+     request. */
+
   switch (token->mac_token.mac_algo) {
   case CURL_OAUTH2_MAC_ALGO_HMAC_SHA1:
     params = Curl_HMAC_SHA1;
@@ -280,7 +312,8 @@ CURLcode Curl_output_mac(struct connectdata *conn,
     goto cleanup;
   }
 
-  /* Compute the MAC using the MAC token key */
+  /* Compute the MAC using the MAC token key. */
+
   ctxt = Curl_HMAC_init(params,
                         (const unsigned char *)token->mac_token.mac_key,
                         curlx_uztoui(strlen(token->mac_token.mac_key)));
@@ -289,7 +322,7 @@ CURLcode Curl_output_mac(struct connectdata *conn,
     goto cleanup;
   }
 
-  /* Update the MAC with the normalized request */
+  /* Update the MAC with the normalized request. */
 
   Curl_HMAC_update(ctxt, (const unsigned char *)nreq,
                    curlx_uztoui(strlen(nreq)));
@@ -297,16 +330,27 @@ CURLcode Curl_output_mac(struct connectdata *conn,
   /* Finalise the MAC */
   Curl_HMAC_final(ctxt, (unsigned char *)digest);
 
-  /* Base64-encode the mac to produce the request MAC */
+  /* Base64-encode the mac to produce the request MAC. */
 
   rc = Curl_base64_encode(data, digest, (*params).hmac_resultlen,
                             &mac, &macsz);
   if(rc)
     goto cleanup;
 
-  /* Produce the Authorization header. */
-  if(ext && strlen(ext)) {
+  /* Produce the Authorization header. The header contains the computed
+     MAC, of course, but also all the other information needed by a server
+     to run HMAC on the same normalized request. The server uses the same
+     MAC secret and algorithm since the client and server both have a copy
+     of the MAC token (identified here by the "id" field).
+
+     We omit the "ext" field if it was not given to us. We always put it
+     there if it was provided, even if it's empty. */
+
+  if(extprovided) {
     extinfo = aprintf("ext=\"%s\", ", ext);
+  }
+  else {
+    extinfo = "";
   }
 
   *allocuserpwd =
@@ -325,8 +369,10 @@ CURLcode Curl_output_mac(struct connectdata *conn,
 
   rc = CURLE_OK;
 
+  /* Cleanup allocated memory. */
+
   cleanup:
-  if(*extinfo) free((char *) extinfo);
+  if(extprovided) Curl_safefree(extinfo);
   Curl_safefree(mac);
   Curl_safefree(hostname);
   Curl_safefree(nreq);
@@ -336,6 +382,9 @@ CURLcode Curl_output_mac(struct connectdata *conn,
 
 #endif
 
+/*
+ * Output a Bearer Authorization header.
+ */
 CURLcode Curl_output_bearer(struct connectdata *conn,
                          bool proxy,
                          const unsigned char *request,
@@ -360,9 +409,14 @@ CURLcode Curl_output_bearer(struct connectdata *conn,
   (void)request;
   (void)uripath;
 
+  /* Check that we have the proper kind of token. */
+
   if(token->token_type != CURL_OAUTH2_TOKEN_TYPE_BEARER) {
     return CURLE_OAUTH2_TOKEN_MALFORMAT;
   }
+
+  /* Select the right Authorization field to fill in depending on
+     whether we're talking to a proxy or the remote host. */
 
   if(proxy) {
     allocuserpwd = &conn->allocptr.proxyuserpwd;
@@ -380,7 +434,9 @@ CURLcode Curl_output_bearer(struct connectdata *conn,
 
   authp->done = TRUE;
 
-  /* Produce the Authorization header. */
+  /* Produce the Authorization header. It is a very trivial header that
+     simply communicates the identifier of the bearer token. */
+
   *allocuserpwd =
     aprintf( "Authorization: Bearer %s\n", token->access_token);
   if(!*allocuserpwd) {
