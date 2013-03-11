@@ -35,7 +35,7 @@
 #include <jsonsl.h>
 #endif
 
-#include <curl/oauth2.h>
+#include "tool_oauth2.h"
 
 #define CURL_OAUTH2_TOKEN_FILE_BUFSZ 2048
 
@@ -152,11 +152,10 @@ static CURLcode parse_oauth2_urlencoded(const char *tokstr, size_t tokstrlen,
       return CURLE_OAUTH2_TOKEN_MALFORMAT;
     }
     keyenc = tokstrp1;
-    rc = Curl_urlfmtdecode(NULL, keyenc, keyenc_len, &key, &key_len,
-                           true, true);
-    if(rc != CURLE_OK) {
-      if(rc == CURLE_URL_MALFORMAT) rc = CURLE_OAUTH2_TOKEN_MALFORMAT;
-      return rc;
+    key = curl_easy_unescape_form(NULL, keyenc, keyenc_len, &key_len);
+    if(key == NULL) {
+      return CURLE_OAUTH2_TOKEN_MALFORMAT; /* It could be a memory error
+                                              too but we cannot tell... */
     }
 
     if(tokstrp2 < end && *tokstrp2 != '&') {
@@ -176,12 +175,11 @@ static CURLcode parse_oauth2_urlencoded(const char *tokstr, size_t tokstrlen,
     }
     else {
       valenc = tokstrp1;
-      rc = Curl_urlfmtdecode(NULL, valenc, valenc_len, &val, &val_len,
-                             true, true);
-      if(rc != CURLE_OK) {
-        if(rc == CURLE_URL_MALFORMAT) rc = CURLE_OAUTH2_TOKEN_MALFORMAT;
+      val = curl_easy_unescape_form(NULL, valenc, valenc_len, &val_len);
+      if(val == NULL) {
         free(key);
-        return rc;
+        return CURLE_OAUTH2_TOKEN_MALFORMAT; /* It could be a memory error
+                                                too but we cannot tell... */
       }
     }
 
@@ -356,66 +354,6 @@ CURLcode curl_parse_oauth2_token(const char *tokbuf, size_t tokbufsz,
   }
   else {
     rc = parse_oauth2_urlencoded(cp, tokbufsz - (cp - tokbuf), token);
-  }
-
-  return rc;
-}
-
-CURLcode curl_parse_oauth2_token_file(const char *fname,
-                                           struct curl_oauth2_token *token) {
-  char buf[CURL_OAUTH2_TOKEN_FILE_BUFSZ];
-  char *bufp = NULL;
-  size_t bufsz = sizeof(buf), filesz = 0;
-  size_t nread;
-  FILE *fp = NULL;
-  CURLcode rc;
-
-  /* blank the token out */
-
-  memset(token, 0, sizeof(*token));
-
-  /* read the file into a buffer if possible, expanding in memory if needed */
-
-  fp = fopen(fname, "r");
-  if(fp == NULL) {
-    return CURLE_READ_ERROR;
-  }
-  if((nread = fread(buf, 1, bufsz, fp)) == bufsz) {
-    do {
-      char *newbufp;
-      newbufp = realloc(bufp, filesz + nread);
-      if(!newbufp) {
-        free(bufp);
-        rc = CURLE_OUT_OF_MEMORY;
-        goto cleanup;
-      }
-      else {
-        bufp = newbufp;
-      }
-      memcpy(bufp + filesz, buf, nread);
-      filesz += nread;
-    } while((nread = fread(buf, 1, bufsz, fp)));
-  }
-  else {
-    bufp = buf;
-    filesz = nread;
-  }
-
-  /* remove trailing white space */
-
-  for(; filesz && ISSPACE(bufp[filesz - 1]); --filesz);
-
-  /* parse the token */
-
-  rc = curl_parse_oauth2_token(bufp, filesz, token);
-
-cleanup:
-  fclose(fp);
-
-  /* free allocated memory */
-
-  if(bufp && bufp != buf) {
-    free(bufp);
   }
 
   return rc;

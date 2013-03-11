@@ -228,6 +228,27 @@ char *curl_easy_unescape(CURL *handle, const char *string, int length,
   return str;
 }
 
+/*
+ * Unescapes the given form escaped string of given length. Returns a
+ * pointer to a malloced string with length given in *olen.
+ * If length == 0, the length is assumed to be strlen(string).
+ * If olen == NULL, no output length is stored.
+ */
+char *curl_easy_unescape_form(CURL *handle, const char *string, int length,
+                              int *olen)
+{
+  char *str = NULL;
+  size_t inputlen = length;
+  size_t outputlen;
+  CURLcode res = Curl_formdecode(handle, string, inputlen, &str, &outputlen,
+                                FALSE);
+  if(res)
+    return NULL;
+  if(olen)
+    *olen = curlx_uztosi(outputlen);
+  return str;
+}
+
 /* For operating systems/environments that use different malloc/free
    systems for the app and for this library, we provide a free that uses
    the library's memory system */

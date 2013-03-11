@@ -41,6 +41,7 @@ CURL_CFILES = \
 	tool_metalink.c \
 	tool_mfiles.c \
 	tool_msgs.c \
+        tool_oauth2.c \
 	tool_operate.c \
 	tool_operhlp.c \
 	tool_panykey.c \

@@ -32,5 +32,8 @@ CURLcode Curl_urlfmtdecode(struct SessionHandle *data,
 #define Curl_urldecode(d, s, l, o, ol, r) \
     Curl_urlfmtdecode((d), (s), (l), (o), (ol), FALSE, (r))
 
+#define Curl_formdecode(d, s, l, o, ol, r) \
+    Curl_urlfmtdecode((d), (s), (l), (o), (ol), TRUE, (r))
+
 #endif /* HEADER_CURL_ESCAPE_H */
 

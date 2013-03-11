@@ -1,5 +1,5 @@
-#ifndef HEADER_CURL_OAUTH2_H
-#define HEADER_CURL_OAUTH2_H
+#ifndef HEADER_CURL_TOOL_OAUTH2_H
+#define HEADER_CURL_TOOL_OAUTH2_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -22,33 +22,27 @@
  *
  ***************************************************************************/
 
+#include <curl/oauth2.h>
+
 #ifdef  __cplusplus
 extern "C" {
 #endif
 
-enum curl_oauth2_token_type {
-  CURL_OAUTH2_TOKEN_TYPE_INVALID = 0,
-  CURL_OAUTH2_TOKEN_TYPE_BEARER,
-  CURL_OAUTH2_TOKEN_TYPE_MAC
-};
+/*
+ * NAME curl_parse_oauth2_token()
+ *
+ * DESCRIPTION
+ *
+ * parses a string as an OAuth 2 token
+ */
+CURL_EXTERN CURLcode curl_parse_oauth2_token(const char *tokbuf,
+                                             size_t tokbufsz,
+                                             struct curl_oauth2_token *token);
 
-enum curl_oauth2_mac_algo {
-  CURL_OAUTH2_MAC_ALGO_INVALID = 0,
-  CURL_OAUTH2_MAC_ALGO_HMAC_SHA1,
-  CURL_OAUTH2_MAC_ALGO_HMAC_SHA256
-};
-
-struct curl_oauth2_token {
-  enum curl_oauth2_token_type token_type;
-  const char *access_token;
-  struct curl_oauth2_mac_token {    /* For HTTP MAC tokens only. */
-    const char *mac_key;
-    enum curl_oauth2_mac_algo mac_algo;
-  } mac_token;
-};
+CURL_EXTERN void curl_free_oauth2_token(struct curl_oauth2_token *token);
 
 #ifdef  __cplusplus
 }
 #endif
 
-#endif /* HEADER_CURL_OAUTH2_H */
+#endif /* HEADER_CURL_TOOL_OAUTH2_H */

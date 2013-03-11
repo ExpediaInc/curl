@@ -1861,6 +1861,22 @@ CURL_EXTERN char *curl_unescape(const char *string,
                                 int length);
 
 /*
+ * NAME curl_easy_unescape_form()
+ *
+ * DESCRIPTION
+ *
+ * Unescapes form encoding in strings (converts all %XX codes to their 8bit
+ * versions and converts '+' into a space). This function returns a new
+ *allocated string or NULL if an error occurred.
+ * Conversion Note: On non-ASCII platforms the ASCII %XX codes are
+ * converted into the host encoding.
+ */
+CURL_EXTERN char *curl_easy_unescape_form(CURL *handle,
+                                     const char *string,
+                                     int length,
+                                     int *outlength);
+
+/*
  * NAME curl_free()
  *
  * DESCRIPTION
